@@ -1,0 +1,64 @@
+/* INTRINSIC Theme & Layout Styles */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Custom Smooth Transitions */
+body {
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom Scrollbars */
+html.dark ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+html.dark ::-webkit-scrollbar-track {
+    background: #090d16;
+}
+html.dark ::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 3px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
+}
+
+html:not(.dark) ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+html:not(.dark) ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Smooth Fade In Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Full Width Fluid Utilities */
+.fluid-container {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+}

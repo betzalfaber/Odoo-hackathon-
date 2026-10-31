@@ -1,6 +1,8 @@
-# Subscription & Invoicing Management System
+# INTRINSIC - Subscription & Invoicing Management System
 
-Enterprise-ready Subscription, Invoicing, and Billing Management System built with **Python (FastAPI)** and **SQLite (SQLAlchemy ORM)**, paired with a responsive, zero-build-step frontend using **HTML5, Tailwind CSS, and Alpine.js**.
+**INTRINSIC** is an enterprise-grade, production-ready Subscription, Invoicing, and Billing Management System built for the **Odoo Makeathon**. 
+
+It is engineered with a **Python (FastAPI)** and **SQLite (SQLAlchemy ORM)** backend, paired with an ultra-responsive, zero-build-step frontend using **HTML5, Tailwind CSS, and Alpine.js**.
 
 ---
 
@@ -9,8 +11,8 @@ Enterprise-ready Subscription, Invoicing, and Billing Management System built wi
 ```mermaid
 graph TD
     Client["Client Browser (HTML5 + Tailwind CSS + Alpine.js)"]
-    API["FastAPI Application Server (Python 3.15)"]
-    Auth["JWT Bearer Authentication & RBAC Middleware"]
+    API["FastAPI REST Server (Python 3.15)"]
+    Auth["JWT Bearer Authentication & Multi-Role RBAC"]
     Engine["Automated Billing & MRR Engine"]
     DB[("SQLite Database (SQLAlchemy ORM)")]
 
@@ -22,16 +24,18 @@ graph TD
 ```
 
 ### Backend & Database
-- **FastAPI**: Asynchronous high-performance REST API with automatic OpenAPI documentation.
-- **SQLite + SQLAlchemy ORM**: Robust local relational persistence without extra service dependencies.
-- **Security & PBKDF2 Hashing**: Cryptographic password hashing (`hashlib.pbkdf2_hmac` SHA-256 with per-user salt) and PyJWT Bearer tokens.
-- **RBAC**: Multi-role authorization middleware supporting `admin`, `staff`, and `customer`.
+- **FastAPI**: Asynchronous high-performance REST API with automatic OpenAPI (Swagger) documentation.
+- **SQLite + SQLAlchemy ORM**: Relational persistence with foreign keys, cascading deletions, and transactional integrity.
+- **Security & PBKDF2 Hashing**: Cryptographic password hashing (`hashlib.pbkdf2_hmac` SHA-256 with per-user salt) and PyJWT Bearer token verification.
+- **User-Friendly Error Handling**: Custom exception handlers translating Pydantic 422 validation arrays into polite, human-readable notifications.
 
 ### Frontend & Client Experience
-- **Tailwind CSS (CDN)**: Modern responsive dark-mode slate theme with zero build tooling or node compilation overhead.
-- **Alpine.js (CDN)**: Declarative reactivity, form validation, and state management.
-- **Heroicons SVG typography**: Professional vector iconography without any emojis across the entire UI.
-- **Sub-Second Performance**: Load times and API calls execute in <200ms (exceeding the <2s target).
+- **Rebranded as INTRINSIC**: Cohesive typography, custom badge iconography, and clean branding.
+- **Mandatory Initial Landing & Auth Flow**: Boots directly into a full-screen Sign In / Register landing screen. Dashboard, navigation, and core features remain completely hidden until authentication succeeds. A prominent **Sign Out** button terminates the session and returns immediately to the initial auth screen.
+- **Fluid Screen Utilization**: Completely removed artificial container constraints (`max-w-7xl` or margin cutoffs). The UI fluidly adapts to 100% of the display width.
+- **Cross-Platform Responsiveness**: Mobile-optimized collapsible navigation drawer and stacked touch-friendly actions, alongside a desktop sidebar and multi-column data views.
+- **Theme Switcher (Dark & Bright Mode)**: Seamless toggle between dark and bright high-contrast color schemes with persistent state saved in `localStorage`.
+- **Zero-Emoji Policy**: Strictly professional vector typography and SVG icons across all views and alerts.
 
 ---
 
@@ -171,78 +175,41 @@ erDiagram
 
 ---
 
-## 4. Strict 2-Person Task Division & Git Branching
-
-```
-* e25f923 Hour 7: Edge-case validation, latency checks (<2s), and RBAC verification
-*   a5371b5 Hour 6: Merge feature/frontend-ui into dev
-|\  
-| * c485344 Hours 2-5 (Teammate 2): Frontend UI layouts, Alpine.js reactive portals, lifecycle tracker, and API integration
-* | 119bbd7 Hours 2-5 (Teammate 1): FastAPI backend, SQLAlchemy models, RBAC auth, billing engine, seed data, and tests
-|/  
-* 8a797cc Hour 1: Initial project skeleton, DB schema contract, and API specifications
-```
-
-| Time Slot | Action Item | Git Strategy |
-| :--- | :--- | :--- |
-| **Hour 1** | Finalize database fields & API contracts | One member pushes initial skeleton to `main`. `dev` created. |
-| **Hours 2–5** | Parallel coding: Backend logic & Frontend UI | Teammate 1 on `feature/backend-api`; Teammate 2 on `feature/frontend-ui`. |
-| **Hour 6** | Integration & Merge | Merged `feature/backend-api` & `feature/frontend-ui` into `dev`. |
-| **Hour 7** | Bug fixing, UI polish, edge-case testing | Automated test suites (`test_api.py`, `test_edge_cases.py`), latency verified. |
-| **Hour 8** | Final Code Review & Submission | Merged `dev` into `main`. Complete README.md documentation. |
-
----
-
-## 5. Local Setup & Quickstart Instructions
-
-### Prerequisites
-- Python 3.10+ installed
-- Git
-
-### Installation
-
-1. **Clone or navigate to the project directory**:
-   ```bash
-   cd subscription_billing_system
-   ```
-
-2. **Install Python dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Start the FastAPI application**:
-   ```bash
-   python run_server.py
-   ```
-   *(Or alternatively: `uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload`)*
-
-4. **Access the application**:
-   - Web Application UI: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-   - Interactive OpenAPI Documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-
----
-
-## 6. Demo Accounts & Pre-Seeded Personas
+## 4. Demo Accounts & Instant Personas
 
 The system automatically initializes and seeds demo data on first startup:
 
 | Persona | Name | Email | Password | Role & Permissions |
 | :--- | :--- | :--- | :--- | :--- |
-| **Administrator** | Alex Morgan | `admin@company.com` | `admin123` | Full access: Plans, Products, Discounts, Billing Engine, MRR |
-| **Staff Member** | Taylor Swift | `staff@company.com` | `staff123` | Lifecycle tracker, contract transitions, billing cycles |
-| **Customer 1** | John Doe | `john.doe@enterprise.com` | `customer123` | Self-service contract requests, view invoices, instant payment |
+| **Administrator** | Alex Morgan | `admin@company.com` | `admin123` | Full platform control: Plans, Products, Discounts, Billing Engine, MRR |
+| **Internal Staff** | Taylor Swift | `staff@company.com` | `staff123` | Contract lifecycle transitions, quote issuing, billing cycle trigger |
+| **Customer 1** | John Doe | `john.doe@enterprise.com` | `customer123` | Self-service contract creation, view invoices, instant payment |
 | **Customer 2** | Sarah Connor | `sarah.connor@cyberdyne.io` | `customer123` | Self-service contracts and invoice settlement |
 
-> Use the **Quick Persona Switcher** in the top navigation bar to switch between personas instantly with zero re-typing!
+> **Evaluation Shortcut**: On the initial full-screen login page, use the **1-Click Instant Persona Evaluation** buttons to test any persona without manual typing.
 
 ---
 
-## 7. Running the Automated Test Suite
+## 5. Local Setup & Quickstart
 
-Run the full backend and edge-case test suites:
+```powershell
+cd C:\Users\abhin\.gemini\antigravity\scratch\subscription_billing_system
 
-```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run server
+python run_server.py
+```
+
+* **Web UI**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+* **Interactive API Docs (Swagger UI)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+---
+
+## 6. Running the Automated Test Suite
+
+```powershell
 # Core API & lifecycle transition tests
 python tests/test_api.py
 
