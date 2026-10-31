@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full antialiased" x-data="intrinsicApp" :class="theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTRINSIC - Subscription & Invoicing Management System</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        indigo: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                            950: '#1e1b4b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js via CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="min-h-full flex flex-col font-sans transition-colors duration-200">
+
+    <!-- INITIAL LOADING SKELETON (Prevents Flash Of Unauthenticated Content) -->
+    <div x-show="initialLoading" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 text-white">
+        <div class="flex flex-col items-center space-y-4">
+            <div class="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-xl text-white shadow-lg animate-pulse">
+                IN
+            </div>
+            <div class="text-sm font-semibold tracking-wider uppercase text-slate-400">Loading INTRINSIC Engine...</div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 1. MANDATORY INITIAL FULL-SCREEN AUTHENTICATION & LANDING VIEW           -->
+    <!-- Displayed whenever the user is NOT authenticated                          -->
+    <!-- ========================================================================= -->
+    <div x-show="!initialLoading && (!isAuthenticated || !currentUser)" x-cloak 
+         class="min-h-screen w-full flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-950 relative overflow-hidden">
+        
+        <!-- Subtle Background Gradients -->
+        <div class="absolute -top-40 -right-40 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Top Right Theme & Help Actions on Auth Landing -->
+        <div class="absolute top-6 right-6 flex items-center space-x-3">
+            <button @click="toggleTheme()" 
+                    class="p-2 rounded-lg border border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-300 transition"
+                    title="Toggle Theme">
+                <template x-if="theme === 'dark'">
+                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                </template>
+                <template x-if="theme === 'light'">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                    </svg>
+                </template>
+            </button>
+        </div>
+
+        <div class="sm:mx-auto sm:w-full sm:max-w-md text-center z-10">
+            <!-- App Branding -->
+            <div class="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-indigo-600 shadow-xl shadow-indigo-600/30 text-white font-extrabold text-2xl tracking-wider mb-4">
+                IN
+            </div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-white uppercase">INTRINSIC</h1>
+            <p class="text-xs text-indigo-400 font-semibold uppercase tracking-widest mt-1">Subscription & Invoicing Management System</p>
+            <p class="text-xs text-slate-400 mt-2 max-w-sm mx-auto">Production-ready billing state machine, automated renewal cycles, and role-based access control.</p>
+        </div>
+
+        <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-lg z-10">
+            <div class="bg-slate-900 border border-slate-800 py-8 px-6 sm:px-10 rounded-2xl shadow-2xl relative">
+                
+                <!-- Quick Demo Persona Switcher (For Instant Evaluation) -->
+                <div class="mb-6 p-3.5 bg-slate-950/80 rounded-xl border border-slate-800/80 text-xs">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-slate-400 font-semibold uppercase tracking-wider text-[11px]">Instant Persona Evaluation:</span>
+                        <span class="text-[10px] text-indigo-400 font-mono">1-Click Launch</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" @click="quickLogin('admin@company.com', 'admin123')"
+                                class="py-1.5 px-2 text-center rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-800/80 font-medium transition">
+                            Admin (Alex)
+                        </button>
+                        <button type="button" @click="quickLogin('staff@company.com', 'staff123')"
+                                class="py-1.5 px-2 text-center rounded-lg bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/80 font-medium transition">
+                            Staff (Taylor)
+                        </button>
+                        <button type="button" @click="quickLogin('john.doe@enterprise.com', 'customer123')"
+                                class="py-1.5 px-2 text-center rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800/80 font-medium transition">
+                            Customer (John)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="relative mb-6">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-slate-800"></div>
+                    </div>
+                    <div class="relative flex justify-center text-xs uppercase">
+                        <span class="bg-slate-900 px-3 text-slate-500 font-semibold tracking-wider">Or Use Credentials</span>
+                    </div>
+                </div>
+
+                <!-- Sign In / Register Tabs -->
+                <div class="flex rounded-lg bg-slate-950 p-1 mb-6 border border-slate-800 text-xs font-semibold">
+                    <button type="button" @click="authMode = 'login'; authError = ''" 
+                            :class="authMode === 'login' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                            class="w-1/2 py-2 rounded-md transition text-center">
+                        Sign In
+                    </button>
+                    <button type="button" @click="authMode = 'register'; authError = ''" 
+                            :class="authMode === 'register' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                            class="w-1/2 py-2 rounded-md transition text-center">
+                        Register Account
+                    </button>
+                </div>
+
+                <!-- Human-Friendly Error Banner -->
+                <template x-if="authError">
+                    <div class="mb-5 p-3 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-300 text-xs flex items-start space-x-2.5 animate-fade-in">
+                        <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <span class="leading-relaxed" x-text="authError"></span>
+                    </div>
+                </template>
+
+                <!-- Auth Form -->
+                <form @submit.prevent="handleAuthSubmit()" class="space-y-4">
+                    <template x-if="authMode === 'register'">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Full Name</label>
+                            <input type="text" x-model="authForm.name" required placeholder="e.g. Elena Rostova"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition">
+                        </div>
+                    </template>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Corporate or Personal Email</label>
+                        <input type="email" x-model="authForm.email" required placeholder="name@company.com"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Password (Min 6 Characters)</label>
+                        <input type="password" x-model="authForm.password" required placeholder="••••••••"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+
+                    <template x-if="authMode === 'register'">
+                        <input type="hidden" x-model="authForm.role" value="customer">
+                    </template>
+
+                    <button type="submit" :disabled="loading"
+                            class="w-full py-3 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs tracking-wider uppercase shadow-md transition disabled:opacity-50">
+                        <span x-show="!loading" x-text="authMode === 'login' ? 'Sign In to INTRINSIC' : 'Complete Registration'"></span>
+                        <span x-show="loading">Authenticating...</span>
+                    </button>
+                </form>
+
+                <div class="mt-6 text-center text-xs text-slate-500">
+                    Protected by INTRINSIC Cryptographic Authentication & RBAC Engine
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- 2. MAIN APPLICATION WORKSPACE                                             -->
+    <!-- Revealed exclusively once the user is authenticated                       -->
+    <!-- ========================================================================= -->
+    <div x-show="isAuthenticated && currentUser" x-cloak class="min-h-screen flex flex-col w-full">
+        
+        <!-- FLUID FULL-WIDTH HEADER -->
+        <header class="w-full border-b transition-colors duration-200 sticky top-0 z-30"
+                :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'">
+            <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-10 h-16 flex items-center justify-between">
+                
+                <!-- Left: Branding & Mobile Hamburger Toggle -->
+                <div class="flex items-center space-x-3 sm:space-x-4">
+                    <!-- Mobile Hamburger Menu Button -->
+                    <button @click="mobileMenuOpen = !mobileMenuOpen" 
+                            class="md:hidden p-2 rounded-lg border text-slate-400 hover:text-white"
+                            :class="theme === 'dark' ? 'border-slate-800 bg-slate-950' : 'border-slate-300 bg-slate-100 text-slate-700'"
+                            aria-label="Toggle Mobile Menu">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                    </button>
+
+                    <!-- Brand Badge -->
+                    <div class="h-9 w-9 bg-indigo-600 rounded-xl flex items-center justify-center font-extrabold text-white text-sm shadow-md shadow-indigo-600/30">
+                        IN
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-extrabold text-lg tracking-tight uppercase" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">INTRINSIC</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded uppercase font-semibold"
+                                  :class="currentUser?.role === 'admin' ? 'bg-indigo-950 text-indigo-400 border border-indigo-800' : (currentUser?.role === 'staff' ? 'bg-blue-950 text-blue-400 border border-blue-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800')"
+                                  x-text="'[' + (currentUser?.role || '') + ']'"></span>
+                        </div>
+                        <div class="text-[10px] hidden sm:block uppercase tracking-wider font-semibold text-indigo-500">Subscription & Invoicing Platform</div>
+                    </div>
+                </div>
+
+                <!-- Right: Theme Switcher, User Details & Immediate Sign Out -->
+                <div class="flex items-center space-x-3 sm:space-x-4">
+                    
+                    <!-- Theme Toggle Button (Dark / Bright Mode) -->
+                    <button @click="toggleTheme()" 
+                            class="p-2 rounded-lg border transition text-xs flex items-center space-x-1.5"
+                            :class="theme === 'dark' ? 'border-slate-800 bg-slate-950 text-slate-300 hover:text-white hover:bg-slate-800' : 'border-slate-200 bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'"
+                            title="Toggle Light / Dark Mode">
+                        <template x-if="theme === 'dark'">
+                            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            </svg>
+                        </template>
+                        <template x-if="theme === 'light'">
+                            <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                            </svg>
+                        </template>
+                        <span class="text-[11px] font-semibold hidden sm:inline" x-text="theme === 'dark' ? 'Bright Mode' : 'Dark Mode'"></span>
+                    </button>
+
+                    <!-- Current Authenticated User Pill -->
+                    <div class="hidden lg:flex flex-col text-right">
+                        <span class="text-xs font-bold" :class="theme === 'dark' ? 'text-slate-200' : 'text-slate-800'" x-text="currentUser?.name"></span>
+                        <span class="text-[11px] font-mono text-slate-400" x-text="currentUser?.email"></span>
+                    </div>
+
+                    <!-- SIGN OUT BUTTON (Boots back to initial auth view) -->
+                    <button @click="logout()" 
+                            class="px-3.5 py-2 text-xs font-semibold rounded-lg border transition shadow-sm flex items-center space-x-1.5"
+                            :class="theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        <span>Sign Out</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- COLLAPSIBLE MOBILE NAVIGATION MENU -->
+            <div x-show="mobileMenuOpen" x-cloak class="md:hidden border-t px-4 py-3 space-y-1 transition"
+                 :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'">
+                <button @click="activeTab = 'dashboard'; mobileMenuOpen = false" 
+                        :class="activeTab === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                        class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition">
+                    Finance Dashboard
+                </button>
+                <button @click="activeTab = 'subscriptions'; mobileMenuOpen = false" 
+                        :class="activeTab === 'subscriptions' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                        class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition">
+                    Subscription Lifecycle Tracker
+                </button>
+                <button @click="activeTab = 'invoices'; mobileMenuOpen = false" 
+                        :class="activeTab === 'invoices' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                        class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition">
+                    Invoicing & Payments
+                </button>
+                <button @click="activeTab = 'catalog'; mobileMenuOpen = false" 
+                        :class="activeTab === 'catalog' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                        class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition">
+                    Catalog & Plans
+                </button>
+                <template x-if="currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')">
+                    <button @click="activeTab = 'discounts'; mobileMenuOpen = false" 
+                            :class="activeTab === 'discounts' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                            class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition">
+                        Discount Rules Manager
+                    </button>
+                </template>
+            </div>
+        </header>
+
+        <!-- FLUID FULL-WIDTH MAIN WORKSPACE CONTAINER -->
+        <div class="w-full flex-1 px-4 sm:px-6 lg:px-8 xl:px-10 py-6 flex flex-col md:flex-row gap-6">
+            
+            <!-- DESKTOP SIDEBAR NAVIGATION -->
+            <aside class="hidden md:block w-64 xl:w-72 flex-shrink-0">
+                <nav class="border rounded-2xl p-3 space-y-1.5 transition"
+                     :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'">
+                    
+                    <!-- Finance Dashboard -->
+                    <button @click="activeTab = 'dashboard'" 
+                            :class="activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : (theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')"
+                            class="w-full flex items-center px-3.5 py-3 rounded-xl text-xs font-semibold transition text-left">
+                        <svg class="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+                        </svg>
+                        <span>Finance Dashboard</span>
+                    </button>
+
+                    <!-- Subscription Lifecycle -->
+                    <button @click="activeTab = 'subscriptions'" 
+                            :class="activeTab === 'subscriptions' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : (theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')"
+                            class="w-full flex items-center px-3.5 py-3 rounded-xl text-xs font-semibold transition text-left">
+                        <svg class="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        <span>Lifecycle Tracker</span>
+                    </button>
+
+                    <!-- Invoicing & Billing -->
+                    <button @click="activeTab = 'invoices'" 
+                            :class="activeTab === 'invoices' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : (theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')"
+                            class="w-full flex items-center px-3.5 py-3 rounded-xl text-xs font-semibold transition text-left">
+                        <svg class="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <span>Invoicing & Statements</span>
+                    </button>
+
+                    <!-- Catalog & Plans -->
+                    <button @click="activeTab = 'catalog'" 
+                            :class="activeTab === 'catalog' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : (theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')"
+                            class="w-full flex items-center px-3.5 py-3 rounded-xl text-xs font-semibold transition text-left">
+                        <svg class="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                        </svg>
+                        <span>Catalog & Plans</span>
+                    </button>
+
+                    <!-- Discount Rules (Staff & Admin) -->
+                    <template x-if="currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')">
+                        <button @click="activeTab = 'discounts'" 
+                                :class="activeTab === 'discounts' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : (theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')"
+                                class="w-full flex items-center px-3.5 py-3 rounded-xl text-xs font-semibold transition text-left">
+                            <svg class="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                            </svg>
+                            <span>Discount Rules</span>
+                        </button>
+                    </template>
+                </nav>
+
+                <!-- System Metadata Panel -->
+                <div class="mt-4 border rounded-2xl p-4 text-xs space-y-2 transition"
+                     :class="theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600 shadow-sm'">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">System Engine:</span>
+                        <span class="font-bold text-emerald-500 flex items-center">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                            ACTIVE
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">Persistence:</span>
+                        <span class="font-mono text-xs font-semibold" :class="theme === 'dark' ? 'text-slate-200' : 'text-slate-800'">SQLite ORM</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">Theme Mode:</span>
+                        <span class="font-mono text-xs uppercase" :class="theme === 'dark' ? 'text-slate-200' : 'text-slate-800'" x-text="theme"></span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- MAIN CONTENT DISPLAY (Fluid full-width layout) -->
+            <main class="flex-1 min-w-0">
+
+                <!-- ------------------------------------------------------------- -->
+                <!-- VIEW 1: FINANCE DASHBOARD                                     -->
+                <!-- ------------------------------------------------------------- -->
+                <section x-show="activeTab === 'dashboard'" x-cloak class="space-y-6 animate-fade-in">
+                    
+                    <!-- Dashboard Top Actions -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b"
+                         :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-200'">
+                        <div>
+                            <h1 class="text-2xl font-extrabold tracking-tight" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Financial Dashboard</h1>
+                            <p class="text-xs text-slate-400 mt-1">Real-time MRR normalization, invoice collections, and cash flow audit trail.</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <template x-if="currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')">
+                                <button @click="triggerBillingEngine()" 
+                                        class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md shadow-indigo-600/30 transition flex items-center">
+                                    
+                                    Run Billing Cycle
+                                </button>
+                            </template>
+                            <button @click="openNewSubModal()" 
+                                    class="px-4 py-2.5 text-xs font-semibold rounded-xl border transition shadow-sm"
+                                    :class="theme === 'dark' ? 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700' : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'">
+                                + New Subscription
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KPI METRIC CARDS (Fluid Grid) -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <!-- MRR Card -->
+                        <div class="border p-5 rounded-2xl shadow-sm transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Monthly Recurring (MRR)</span>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800">Normalized</span>
+                            </div>
+                            <div class="text-2xl font-black mt-2" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="formatCurrency(metrics.mrr)">$0.00</div>
+                            <div class="text-xs text-slate-400 mt-1">Sum across all active billing tiers</div>
+                        </div>
+
+                        <!-- Active Subscriptions -->
+                        <div class="border p-5 rounded-2xl shadow-sm transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Active Subscriptions</span>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950/80 text-blue-400 border border-blue-800">Active</span>
+                            </div>
+                            <div class="text-2xl font-black mt-2" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="metrics.active_subscriptions_count">0</div>
+                            <div class="text-xs text-slate-400 mt-1">Confirmed active subscriber contracts</div>
+                        </div>
+
+                        <!-- Overdue Invoices -->
+                        <div class="border p-5 rounded-2xl shadow-sm transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Overdue / Outstanding</span>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-800" x-text="metrics.overdue_invoices_count + ' Invoices'"></span>
+                            </div>
+                            <div class="text-2xl font-black text-amber-500 mt-2" x-text="formatCurrency(metrics.overdue_invoices_amount)">$0.00</div>
+                            <div class="text-xs text-slate-400 mt-1">Pending settlement receivable</div>
+                        </div>
+
+                        <!-- Total Revenue Cleared -->
+                        <div class="border p-5 rounded-2xl shadow-sm transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Settled Cash</span>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950/80 text-purple-400 border border-purple-800">Lifetime</span>
+                            </div>
+                            <div class="text-2xl font-black mt-2" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="formatCurrency(metrics.total_revenue)">$0.00</div>
+                            <div class="text-xs text-slate-400 mt-1">Total cleared customer payments</div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Settlements Table (Fluid width) -->
+                    <div class="border rounded-2xl overflow-hidden shadow-sm transition"
+                         :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                        <div class="px-6 py-4 border-b flex items-center justify-between"
+                             :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-200'">
+                            <div>
+                                <h2 class="text-sm font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Recent Settlement Audit Trail</h2>
+                                <p class="text-xs text-slate-400">Chronological transaction logs cross-referenced with customer invoices</p>
+                            </div>
+                            <span class="text-xs font-mono font-semibold text-slate-400" x-text="metrics.recent_revenue_logs.length + ' Recorded'"></span>
+                        </div>
+
+                        <div class="overflow-x-auto w-full">
+                            <table class="w-full text-left text-xs">
+                                <thead class="border-b uppercase tracking-wider font-semibold"
+                                       :class="theme === 'dark' ? 'bg-slate-950 text-slate-400 border-slate-800' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                                    <tr>
+                                        <th class="px-6 py-3.5">Payment #</th>
+                                        <th class="px-6 py-3.5">Invoice #</th>
+                                        <th class="px-6 py-3.5">Subscriber</th>
+                                        <th class="px-6 py-3.5">Method</th>
+                                        <th class="px-6 py-3.5">Date</th>
+                                        <th class="px-6 py-3.5 text-right">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y font-medium"
+                                       :class="theme === 'dark' ? 'divide-slate-800/60' : 'divide-slate-100'">
+                                    <template x-for="log in metrics.recent_revenue_logs" :key="log.payment_number">
+                                        <tr :class="theme === 'dark' ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'">
+                                            <td class="px-6 py-3.5 font-mono text-indigo-400 font-bold" x-text="log.payment_number"></td>
+                                            <td class="px-6 py-3.5 font-mono" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'" x-text="log.invoice_number"></td>
+                                            <td class="px-6 py-3.5 font-semibold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="log.customer_name"></td>
+                                            <td class="px-6 py-3.5">
+                                                <span class="px-2.5 py-0.5 rounded text-[11px] font-mono uppercase"
+                                                      :class="theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'"
+                                                      x-text="log.method.replace('_', ' ')"></span>
+                                            </td>
+                                            <td class="px-6 py-3.5 text-slate-400" x-text="formatDate(log.date)"></td>
+                                            <td class="px-6 py-3.5 text-right font-mono font-bold text-emerald-500" x-text="formatCurrency(log.amount)"></td>
+                                        </tr>
+                                    </template>
+                                    <template x-if="metrics.recent_revenue_logs.length === 0">
+                                        <tr>
+                                            <td colspan="6" class="px-6 py-8 text-center text-slate-500">No payment records found.</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ------------------------------------------------------------- -->
+                <!-- VIEW 2: SUBSCRIPTION LIFECYCLE TRACKER                        -->
+                <!-- ------------------------------------------------------------- -->
+                <section x-show="activeTab === 'subscriptions'" x-cloak class="space-y-6 animate-fade-in">
+                    
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b"
+                         :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-200'">
+                        <div>
+                            <h1 class="text-2xl font-extrabold tracking-tight" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Subscription Lifecycle Tracker</h1>
+                            <p class="text-xs text-slate-400 mt-1">State machine progression: Draft &rarr; Quotation &rarr; Confirmed &rarr; Active &rarr; Closed.</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="subStatusFilter" @change="loadSubscriptions()" 
+                                    class="border text-xs rounded-xl px-3.5 py-2.5 focus:outline-none"
+                                    :class="theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-800'">
+                                <option value="">All Lifecycle Stages</option>
+                                <option value="Draft">Draft</option>
+                                <option value="Quotation">Quotation</option>
+                                <option value="Confirmed">Confirmed</option>
+                                <option value="Active">Active</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                            <button @click="openNewSubModal()" 
+                                    class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md shadow-indigo-600/30 transition">
+                                + Create Contract / Quote
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Visual Pipeline Stepper Cards -->
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-xs">
+                        <div class="border p-3.5 rounded-xl transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'">
+                            <div class="font-bold uppercase tracking-wider text-[10px] text-slate-400">1. Draft</div>
+                            <div class="text-xl font-black mt-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'" x-text="subscriptions.filter(s => s.status === 'Draft').length"></div>
+                        </div>
+                        <div class="border p-3.5 rounded-xl transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-amber-900/40 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-800 shadow-sm'">
+                            <div class="font-bold uppercase tracking-wider text-[10px]">2. Quotation</div>
+                            <div class="text-xl font-black mt-1" x-text="subscriptions.filter(s => s.status === 'Quotation').length"></div>
+                        </div>
+                        <div class="border p-3.5 rounded-xl transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-blue-900/40 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-800 shadow-sm'">
+                            <div class="font-bold uppercase tracking-wider text-[10px]">3. Confirmed</div>
+                            <div class="text-xl font-black mt-1" x-text="subscriptions.filter(s => s.status === 'Confirmed').length"></div>
+                        </div>
+                        <div class="border p-3.5 rounded-xl transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-emerald-900/40 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-800 shadow-sm'">
+                            <div class="font-bold uppercase tracking-wider text-[10px]">4. Active</div>
+                            <div class="text-xl font-black mt-1" x-text="subscriptions.filter(s => s.status === 'Active').length"></div>
+                        </div>
+                        <div class="border p-3.5 rounded-xl transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-rose-900/40 text-rose-400' : 'bg-rose-50 border-rose-200 text-rose-800 shadow-sm'">
+                            <div class="font-bold uppercase tracking-wider text-[10px]">5. Closed</div>
+                            <div class="text-xl font-black mt-1" x-text="subscriptions.filter(s => s.status === 'Closed').length"></div>
+                        </div>
+                    </div>
+
+                    <!-- Subscriptions Table -->
+                    <div class="border rounded-2xl overflow-hidden shadow-sm transition"
+                         :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                        <div class="overflow-x-auto w-full">
+                            <table class="w-full text-left text-xs">
+                                <thead class="border-b uppercase tracking-wider font-semibold"
+                                       :class="theme === 'dark' ? 'bg-slate-950 text-slate-400 border-slate-800' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                                    <tr>
+                                        <th class="px-6 py-3.5">Contract #</th>
+                                        <th class="px-6 py-3.5">Customer / Organization</th>
+                                        <th class="px-6 py-3.5">Plan & Term</th>
+                                        <th class="px-6 py-3.5">Qty</th>
+                                        <th class="px-6 py-3.5">Promo</th>
+                                        <th class="px-6 py-3.5">Next Renewal</th>
+                                        <th class="px-6 py-3.5">Status</th>
+                                        <th class="px-6 py-3.5 text-right">Lifecycle Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y font-medium"
+                                       :class="theme === 'dark' ? 'divide-slate-800/60' : 'divide-slate-100'">
+                                    <template x-for="sub in subscriptions" :key="sub.id">
+                                        <tr :class="theme === 'dark' ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'">
+                                            <td class="px-6 py-3.5 font-mono text-indigo-500 font-bold" x-text="sub.sub_number"></td>
+                                            <td class="px-6 py-3.5">
+                                                <div class="font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="sub.customer?.name || 'Customer'"></div>
+                                                <div class="text-[11px] text-slate-400 font-mono" x-text="sub.customer?.email || ''"></div>
+                                            </td>
+                                            <td class="px-6 py-3.5">
+                                                <div class="font-semibold" :class="theme === 'dark' ? 'text-slate-200' : 'text-slate-800'" x-text="sub.plan?.name || 'N/A'"></div>
+                                                <div class="text-[11px] text-slate-400" x-text="sub.plan ? (formatCurrency(sub.plan.price) + ' / ' + sub.plan.frequency) : ''"></div>
+                                            </td>
+                                            <td class="px-6 py-3.5 font-mono" x-text="sub.quantity"></td>
+                                            <td class="px-6 py-3.5">
+                                                <template x-if="sub.discount">
+                                                    <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-indigo-950 text-indigo-300 border border-indigo-800" 
+                                                          x-text="sub.discount.code"></span>
+                                                </template>
+                                                <template x-if="!sub.discount">
+                                                    <span class="text-slate-400 text-[11px]">Standard</span>
+                                                </template>
+                                            </td>
+                                            <td class="px-6 py-3.5 text-slate-400" x-text="formatDate(sub.expiry_date)"></td>
+                                            <td class="px-6 py-3.5">
+                                                <span class="px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wider" 
+                                                      :class="getStatusBadgeClass(sub.status)" 
+                                                      x-text="sub.status"></span>
+                                            </td>
+                                            <td class="px-6 py-3.5 text-right space-x-1 whitespace-nowrap">
+                                                <!-- Contextual Lifecycle Actions -->
+                                                <template x-if="sub.status === 'Draft'">
+                                                    <button @click="transitionStatus(sub, 'Quotation')" 
+                                                            class="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-[11px] transition">
+                                                        Send Quotation
+                                                    </button>
+                                                </template>
+
+                                                <template x-if="sub.status === 'Quotation'">
+                                                    <button @click="transitionStatus(sub, 'Confirmed')" 
+                                                            class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-[11px] transition">
+                                                        Confirm Contract
+                                                    </button>
+                                                </template>
+
+                                                <template x-if="sub.status === 'Confirmed' && (currentUser?.role === 'admin' || currentUser?.role === 'staff')">
+                                                    <button @click="transitionStatus(sub, 'Active')" 
+                                                            class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition">
+                                                        Activate & Issue Invoice
+                                                    </button>
+                                                </template>
+
+                                                <template x-if="sub.status === 'Active' && (currentUser?.role === 'admin' || currentUser?.role === 'staff')">
+                                                    <button @click="triggerBillingEngine(sub.id)" 
+                                                            class="px-2.5 py-1.5 rounded-lg border text-[11px] transition font-semibold"
+                                                            :class="theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'">
+                                                        Trigger Bill
+                                                    </button>
+                                                </template>
+
+                                                <template x-if="sub.status !== 'Closed'">
+                                                    <button @click="transitionStatus(sub, 'Closed')" 
+                                                            class="px-2.5 py-1.5 rounded-lg border text-[11px] transition font-semibold"
+                                                            :class="theme === 'dark' ? 'bg-rose-950 hover:bg-rose-900 text-rose-300 border-rose-800' : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'">
+                                                        Close
+                                                    </button>
+                                                </template>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <template x-if="subscriptions.length === 0">
+                                        <tr>
+                                            <td colspan="8" class="px-6 py-8 text-center text-slate-500">No subscriptions matching filter.</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ------------------------------------------------------------- -->
+                <!-- VIEW 3: INVOICING & PAYMENTS                                  -->
+                <!-- ------------------------------------------------------------- -->
+                <section x-show="activeTab === 'invoices'" x-cloak class="space-y-6 animate-fade-in">
+                    
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b"
+                         :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-200'">
+                        <div>
+                            <h1 class="text-2xl font-extrabold tracking-tight" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Invoicing & Statements</h1>
+                            <p class="text-xs text-slate-400 mt-1">Lifecycle statements: Draft &rarr; Confirmed &rarr; Paid.</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="invStatusFilter" @change="loadInvoices()" 
+                                    class="border text-xs rounded-xl px-3.5 py-2.5 focus:outline-none"
+                                    :class="theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-800'">
+                                <option value="">All Invoices</option>
+                                <option value="Confirmed">Confirmed (Outstanding)</option>
+                                <option value="Paid">Paid</option>
+                                <option value="Draft">Draft</option>
+                            </select>
+                            <template x-if="currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')">
+                                <button @click="triggerBillingEngine()" 
+                                        class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md shadow-indigo-600/30 transition">
+                                    Trigger Billing Cycle
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Invoices Table -->
+                    <div class="border rounded-2xl overflow-hidden shadow-sm transition"
+                         :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                        <div class="overflow-x-auto w-full">
+                            <table class="w-full text-left text-xs">
+                                <thead class="border-b uppercase tracking-wider font-semibold"
+                                       :class="theme === 'dark' ? 'bg-slate-950 text-slate-400 border-slate-800' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                                    <tr>
+                                        <th class="px-6 py-3.5">Invoice #</th>
+                                        <th class="px-6 py-3.5">Contract Ref</th>
+                                        <th class="px-6 py-3.5">Customer</th>
+                                        <th class="px-6 py-3.5">Issued</th>
+                                        <th class="px-6 py-3.5">Due Date</th>
+                                        <th class="px-6 py-3.5">Subtotal</th>
+                                        <th class="px-6 py-3.5">Tax (10%)</th>
+                                        <th class="px-6 py-3.5">Total Amount</th>
+                                        <th class="px-6 py-3.5">Status</th>
+                                        <th class="px-6 py-3.5 text-right">Payment Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y font-medium"
+                                       :class="theme === 'dark' ? 'divide-slate-800/60' : 'divide-slate-100'">
+                                    <template x-for="inv in invoices" :key="inv.id">
+                                        <tr :class="theme === 'dark' ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'">
+                                            <td class="px-6 py-3.5 font-mono text-indigo-500 font-bold" x-text="inv.invoice_number"></td>
+                                            <td class="px-6 py-3.5 font-mono" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'" x-text="inv.subscription?.sub_number || 'N/A'"></td>
+                                            <td class="px-6 py-3.5 font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="inv.subscription?.customer?.name || 'Customer'"></td>
+                                            <td class="px-6 py-3.5 text-slate-400" x-text="formatDate(inv.issue_date)"></td>
+                                            <td class="px-6 py-3.5 text-slate-400" x-text="formatDate(inv.due_date)"></td>
+                                            <td class="px-6 py-3.5 font-mono" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'" x-text="formatCurrency(inv.subtotal)"></td>
+                                            <td class="px-6 py-3.5 font-mono text-slate-400" x-text="formatCurrency(inv.taxes)"></td>
+                                            <td class="px-6 py-3.5 font-mono font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="formatCurrency(inv.total_amount)"></td>
+                                            <td class="px-6 py-3.5">
+                                                <span class="px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wider" 
+                                                      :class="getStatusBadgeClass(inv.status)" 
+                                                      x-text="inv.status"></span>
+                                            </td>
+                                            <td class="px-6 py-3.5 text-right">
+                                                <template x-if="inv.status !== 'Paid'">
+                                                    <button @click="openPayModal(inv)" 
+                                                            class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] shadow-sm transition">
+                                                        Pay Now
+                                                    </button>
+                                                </template>
+                                                <template x-if="inv.status === 'Paid'">
+                                                    <span class="text-slate-400 text-[11px] font-mono font-bold">Settled</span>
+                                                </template>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <template x-if="invoices.length === 0">
+                                        <tr>
+                                            <td colspan="10" class="px-6 py-8 text-center text-slate-500">No invoices available.</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ------------------------------------------------------------- -->
+                <!-- VIEW 4: CATALOG & PLANS                                       -->
+                <!-- ------------------------------------------------------------- -->
+                <section x-show="activeTab === 'catalog'" x-cloak class="space-y-6 animate-fade-in">
+                    
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b"
+                         :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-200'">
+                        <div>
+                            <h1 class="text-2xl font-extrabold tracking-tight" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Product & Plan Catalog</h1>
+                            <p class="text-xs text-slate-400 mt-1">Subscription plan frequencies, terms, products, and variant pricing matrix.</p>
+                        </div>
+                        <template x-if="currentUser?.role === 'admin'">
+                            <div class="flex items-center space-x-2">
+                                <button @click="productModalOpen = true" 
+                                        class="px-4 py-2.5 text-xs font-semibold rounded-xl border transition shadow-sm"
+                                        :class="theme === 'dark' ? 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700' : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'">
+                                    + Add Product / Variant
+                                </button>
+                                <button @click="planModalOpen = true" 
+                                        class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md shadow-indigo-600/30 transition">
+                                    + Add Plan Tier
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Plans Grid (Fluid Multi-Column) -->
+                    <div class="space-y-3">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Subscription Plans</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                            <template x-for="p in plans" :key="p.id">
+                                <div class="border p-6 rounded-2xl flex flex-col justify-between transition hover:shadow-lg"
+                                     :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                                    <div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-bold uppercase tracking-wider text-indigo-500 font-mono" x-text="p.frequency"></span>
+                                            <span class="text-[11px] text-slate-400 font-mono" x-text="'Min Qty: ' + p.min_quantity"></span>
+                                        </div>
+                                        <h3 class="text-lg font-bold mt-2" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="p.name"></h3>
+                                        <div class="text-2xl font-black mt-3" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">
+                                            <span x-text="formatCurrency(p.price)"></span>
+                                            <span class="text-xs font-normal text-slate-400" x-text="'/' + p.frequency"></span>
+                                        </div>
+                                        <p class="text-xs text-slate-400 mt-3 leading-relaxed" x-text="p.status_rules || 'Standard terms apply.'"></p>
+                                    </div>
+                                    <div class="mt-6 pt-4 border-t" :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
+                                        <button @click="subForm.plan_id = p.id; openNewSubModal()" 
+                                                class="w-full py-2.5 px-4 text-xs font-semibold rounded-xl transition text-center shadow-sm"
+                                                :class="theme === 'dark' ? 'bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-800' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'">
+                                            Select Plan & Subscribe
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Products & Variants Table -->
+                    <div class="space-y-3 pt-4">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Products & Variant Specifications</h2>
+                        <div class="border rounded-2xl overflow-hidden shadow-sm transition"
+                             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                            <div class="overflow-x-auto w-full">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="border-b uppercase tracking-wider font-semibold"
+                                           :class="theme === 'dark' ? 'bg-slate-950 text-slate-400 border-slate-800' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                                        <tr>
+                                            <th class="px-6 py-3.5">Product Name</th>
+                                            <th class="px-6 py-3.5">Type</th>
+                                            <th class="px-6 py-3.5">Variant Attribute</th>
+                                            <th class="px-6 py-3.5">Sales Price</th>
+                                            <th class="px-6 py-3.5">Cost Baseline</th>
+                                            <th class="px-6 py-3.5">Variant Modifier</th>
+                                            <th class="px-6 py-3.5 text-right">Net Price</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y font-medium"
+                                           :class="theme === 'dark' ? 'divide-slate-800/60' : 'divide-slate-100'">
+                                        <template x-for="prod in products" :key="prod.id">
+                                            <tr :class="theme === 'dark' ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'">
+                                                <td class="px-6 py-3.5 font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="prod.name"></td>
+                                                <td class="px-6 py-3.5">
+                                                    <span class="px-2 py-0.5 rounded text-[11px] font-mono uppercase"
+                                                          :class="theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'"
+                                                          x-text="prod.type"></span>
+                                                </td>
+                                                <td class="px-6 py-3.5 text-slate-400 font-mono" x-text="prod.variant_attribute || 'Standard Base'"></td>
+                                                <td class="px-6 py-3.5 font-mono" :class="theme === 'dark' ? 'text-slate-200' : 'text-slate-800'" x-text="formatCurrency(prod.sales_price)"></td>
+                                                <td class="px-6 py-3.5 font-mono text-slate-400" x-text="formatCurrency(prod.cost_price)"></td>
+                                                <td class="px-6 py-3.5 font-mono text-indigo-500 font-bold" x-text="'+' + formatCurrency(prod.price_modifier)"></td>
+                                                <td class="px-6 py-3.5 text-right font-mono font-bold text-emerald-500" x-text="formatCurrency(prod.sales_price + prod.price_modifier)"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ------------------------------------------------------------- -->
+                <!-- VIEW 5: DISCOUNT RULES (ADMIN & STAFF)                        -->
+                <!-- ------------------------------------------------------------- -->
+                <section x-show="activeTab === 'discounts'" x-cloak class="space-y-6 animate-fade-in">
+                    
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b"
+                         :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-200'">
+                        <div>
+                            <h1 class="text-2xl font-extrabold tracking-tight" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Promotional Discount Rules</h1>
+                            <p class="text-xs text-slate-400 mt-1">Configure coupon codes, percentage/fixed deductions, purchase minimums, and usage quotas.</p>
+                        </div>
+                        <template x-if="currentUser?.role === 'admin'">
+                            <button @click="discountModalOpen = true" 
+                                    class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md shadow-indigo-600/30 transition">
+                                + New Promo Rule
+                            </button>
+                        </template>
+                    </div>
+
+                    <!-- Discounts Table -->
+                    <div class="border rounded-2xl overflow-hidden shadow-sm transition"
+                         :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+                        <div class="overflow-x-auto w-full">
+                            <table class="w-full text-left text-xs">
+                                <thead class="border-b uppercase tracking-wider font-semibold"
+                                       :class="theme === 'dark' ? 'bg-slate-950 text-slate-400 border-slate-800' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                                    <tr>
+                                        <th class="px-6 py-3.5">Promo Code</th>
+                                        <th class="px-6 py-3.5">Type</th>
+                                        <th class="px-6 py-3.5">Benefit</th>
+                                        <th class="px-6 py-3.5">Min Purchase</th>
+                                        <th class="px-6 py-3.5">Usage (Used / Limit)</th>
+                                        <th class="px-6 py-3.5">Expiry Date</th>
+                                        <th class="px-6 py-3.5 text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y font-medium"
+                                       :class="theme === 'dark' ? 'divide-slate-800/60' : 'divide-slate-100'">
+                                    <template x-for="d in discounts" :key="d.id">
+                                        <tr :class="theme === 'dark' ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'">
+                                            <td class="px-6 py-3.5 font-mono font-bold text-indigo-500" x-text="d.code"></td>
+                                            <td class="px-6 py-3.5 font-mono uppercase text-[11px]" x-text="d.type"></td>
+                                            <td class="px-6 py-3.5 font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">
+                                                <span x-text="d.type === 'percentage' ? (d.value + '% OFF') : ('$' + d.value.toFixed(2) + ' OFF')"></span>
+                                            </td>
+                                            <td class="px-6 py-3.5 font-mono" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'" x-text="formatCurrency(d.min_purchase)"></td>
+                                            <td class="px-6 py-3.5 font-mono" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'" x-text="d.times_used + ' / ' + d.usage_limit"></td>
+                                            <td class="px-6 py-3.5 text-slate-400" x-text="d.expiry_date ? formatDate(d.expiry_date) : 'No Expiry'"></td>
+                                            <td class="px-6 py-3.5 text-right">
+                                                <span class="px-2.5 py-1 rounded text-[11px] font-semibold"
+                                                      :class="d.is_active ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-400 border border-rose-300 dark:border-rose-800'"
+                                                      x-text="d.is_active ? 'ACTIVE' : 'DISABLED'"></span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- MODALS (All forms with human-friendly input validation)                   -->
+    <!-- ========================================================================= -->
+
+    <!-- MODAL: NEW SUBSCRIPTION CONTRACT -->
+    <div x-show="subModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="border rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-fade-in"
+             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'"
+             @click.away="subModalOpen = false">
+            <h2 class="text-lg font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Initialize Subscription Contract</h2>
+            <p class="text-xs text-slate-400 mt-1">Configure plan terms, tier quantities, and promotional codes.</p>
+
+            <form @submit.prevent="handleCreateSubscription()" class="space-y-4 mt-5">
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Subscription Plan</label>
+                    <select x-model="subForm.plan_id" @change="checkDiscountCode()" required
+                            class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                            :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                        <template x-for="p in plans" :key="p.id">
+                            <option :value="p.id" x-text="p.name + ' (' + formatCurrency(p.price) + ' / ' + p.frequency + ')'"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Quantity / Seats</label>
+                        <input type="number" min="1" x-model.number="subForm.quantity" @input="checkDiscountCode()" required
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Initial State</label>
+                        <select x-model="subForm.status" class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                                :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                            <option value="Draft">Draft</option>
+                            <option value="Quotation">Quotation</option>
+                            <option value="Confirmed">Confirmed</option>
+                            <option value="Active">Active (Auto-Invoice)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Promo Code (Optional)</label>
+                    <div class="flex space-x-2">
+                        <input type="text" placeholder="e.g. WELCOME20" x-model="subForm.discount_code"
+                               class="flex-1 border rounded-xl px-3.5 py-2.5 text-xs font-mono uppercase focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                        <button type="button" @click="checkDiscountCode()" 
+                                class="px-4 py-2.5 text-xs rounded-xl border font-semibold transition"
+                                :class="theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'">
+                            Verify
+                        </button>
+                    </div>
+
+                    <!-- Inline Human-Friendly Discount Verification -->
+                    <template x-if="discountPreview">
+                        <div class="mt-2.5 p-3 rounded-xl text-xs flex items-center space-x-2"
+                             :class="discountPreview.valid ? 'bg-emerald-950/60 border border-emerald-800 text-emerald-300' : 'bg-rose-950/60 border border-rose-800 text-rose-300'">
+                            <span class="font-bold uppercase" x-text="discountPreview.valid ? 'PROMO APPLIED:' : 'PROMO NOTICE:'"></span>
+                            <span x-text="discountPreview.valid ? ('Savings of $' + discountPreview.discount_amount.toFixed(2)) : discountPreview.reason"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="flex items-center justify-end space-x-2 pt-4 border-t" :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
+                    <button type="button" @click="subModalOpen = false" 
+                            class="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-200">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md shadow-indigo-600/30">
+                        Create Contract
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: SETTLE INVOICE PAYMENT -->
+    <div x-show="payModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="border rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-fade-in"
+             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'"
+             @click.away="payModalOpen = false">
+            <h2 class="text-lg font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Settle Statement Balance</h2>
+            <p class="text-xs text-slate-400 mt-1" x-text="'Processing payment for ' + (selectedInvoice?.invoice_number || '')"></p>
+
+            <form @submit.prevent="handlePayInvoice()" class="space-y-4 mt-5">
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Payment Channel</label>
+                    <select x-model="payForm.method" required
+                            class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                            :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                        <option value="credit_card">Corporate Credit Card (Stripe)</option>
+                        <option value="bank_transfer">ACH / Bank Wire Transfer</option>
+                        <option value="cash">Direct Cash / Cheque</option>
+                        <option value="paypal">PayPal Gateway</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Amount Due ($ USD)</label>
+                    <input type="number" step="0.01" x-model.number="payForm.amount" required
+                           class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none"
+                           :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Reference / Approval Memo</label>
+                    <input type="text" x-model="payForm.notes" placeholder="Transaction ID, Wire Ref, or Notes"
+                           class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                           :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                </div>
+
+                <div class="flex items-center justify-end space-x-2 pt-4 border-t" :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
+                    <button type="button" @click="payModalOpen = false" 
+                            class="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-200">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-md">
+                        Process Settlement
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CREATE PLAN (ADMIN) -->
+    <div x-show="planModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="border rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-fade-in"
+             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'"
+             @click.away="planModalOpen = false">
+            <h2 class="text-lg font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Add Subscription Plan Tier</h2>
+            <p class="text-xs text-slate-400 mt-1">Configure recurrence frequency, minimum quantity, and renewal policies.</p>
+
+            <form @submit.prevent="handleCreatePlan()" class="space-y-4 mt-5">
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Plan Name</label>
+                    <input type="text" x-model="planForm.name" required placeholder="e.g. Enterprise Dedicated"
+                           class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                           :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Billing Frequency</label>
+                        <select x-model="planForm.frequency" class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                                :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Price ($ USD)</label>
+                        <input type="number" step="0.01" min="0" x-model.number="planForm.price" required
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Min Seat Quantity</label>
+                    <input type="number" min="1" x-model.number="planForm.min_quantity" required
+                           class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                           :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Policy & Renewal Rules</label>
+                    <textarea x-model="planForm.status_rules" rows="2" placeholder="Grace period, auto-renewal day, suspension policy..."
+                              class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                              :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'"></textarea>
+                </div>
+
+                <div class="flex items-center justify-end space-x-2 pt-4 border-t" :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
+                    <button type="button" @click="planModalOpen = false" 
+                            class="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-200">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md">
+                        Publish Plan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CREATE PRODUCT & VARIANT (ADMIN) -->
+    <div x-show="productModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="border rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-fade-in"
+             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'"
+             @click.away="productModalOpen = false">
+            <h2 class="text-lg font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Add Catalog Product & Variant</h2>
+            <p class="text-xs text-slate-400 mt-1">Specify item pricing baseline and variant attributes.</p>
+
+            <form @submit.prevent="handleCreateProduct()" class="space-y-4 mt-5">
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Product Name</label>
+                    <input type="text" x-model="productForm.name" required placeholder="e.g. Distributed Database"
+                           class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                           :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Type</label>
+                        <input type="text" x-model="productForm.type" required placeholder="e.g. storage, compute"
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Variant Attribute</label>
+                        <input type="text" x-model="productForm.variant_attribute" placeholder="e.g. High Throughput"
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Sales Price</label>
+                        <input type="number" step="0.01" min="0" x-model.number="productForm.sales_price" required
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Cost Price</label>
+                        <input type="number" step="0.01" min="0" x-model.number="productForm.cost_price" required
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Modifier (+)</label>
+                        <input type="number" step="0.01" x-model.number="productForm.price_modifier" required
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end space-x-2 pt-4 border-t" :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
+                    <button type="button" @click="productModalOpen = false" 
+                            class="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-200">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md">
+                        Save Product
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CREATE DISCOUNT RULE (ADMIN) -->
+    <div x-show="discountModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="border rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-fade-in"
+             :class="theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'"
+             @click.away="discountModalOpen = false">
+            <h2 class="text-lg font-bold" :class="theme === 'dark' ? 'text-white' : 'text-slate-900'">Create Promotional Discount Rule</h2>
+            <p class="text-xs text-slate-400 mt-1">Define coupon identifier, value, minimum spend, and quota limits.</p>
+
+            <form @submit.prevent="handleCreateDiscount()" class="space-y-4 mt-5">
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Promo Code</label>
+                    <input type="text" x-model="discountForm.code" required placeholder="e.g. INTRINSIC30"
+                           class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono uppercase focus:outline-none"
+                           :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Discount Type</label>
+                        <select x-model="discountForm.type" class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                                :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                            <option value="percentage">Percentage (%)</option>
+                            <option value="fixed">Fixed Dollar ($)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Benefit Value</label>
+                        <input type="number" step="0.01" min="0.01" x-model.number="discountForm.value" required
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Min Purchase ($)</label>
+                        <input type="number" step="0.01" min="0" x-model.number="discountForm.min_purchase" required
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Usage Limit</label>
+                        <input type="number" min="1" x-model.number="discountForm.usage_limit" required
+                               class="w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none"
+                               :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-slate-300' : 'text-slate-700'">Expiration Date (Optional)</label>
+                    <input type="datetime-local" x-model="discountForm.expiry_date"
+                           class="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none"
+                           :class="theme === 'dark' ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'">
+                </div>
+
+                <div class="flex items-center justify-end space-x-2 pt-4 border-t" :class="theme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
+                    <button type="button" @click="discountModalOpen = false" 
+                            class="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-200">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md">
+                        Activate Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- TOAST NOTIFICATION STACK (Strictly Zero Emojis)                           -->
+    <!-- ========================================================================= -->
+    <div class="fixed bottom-5 right-5 z-50 space-y-2.5 max-w-sm w-full pointer-events-none">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div class="pointer-events-auto p-4 rounded-2xl border shadow-2xl flex items-start space-x-3 transition animate-fade-in"
+                 :class="{
+                     'bg-slate-900 border-emerald-800 text-slate-100': toast.type === 'success',
+                     'bg-slate-900 border-rose-800 text-slate-100': toast.type === 'error',
+                     'bg-slate-900 border-indigo-800 text-slate-100': toast.type === 'info'
+                 }">
+                <!-- Clean Vector SVG Icon -->
+                <div class="flex-shrink-0 mt-0.5">
+                    <template x-if="toast.type === 'success'">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </template>
+                    <template x-if="toast.type === 'error'">
+                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </template>
+                    <template x-if="toast.type === 'info'">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </template>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs font-bold leading-tight" x-text="toast.title"></div>
+                    <div class="text-[11px] text-slate-300 mt-1 leading-relaxed" x-text="toast.message"></div>
+                </div>
+                <button @click="removeToast(toast.id)" class="text-slate-500 hover:text-slate-300">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
