@@ -1,102 +1,69 @@
-from contextlib import asynccontextmanager
+"""FastAPI application: API routes, the web page and startup tasks."""
 import os
-from fastapi import FastAPI, Request, status
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+import time
+from contextlib import asynccontextmanager
 
-from app.database import engine, Base, SessionLocal
-from app.seed_data import seed_database
-from app.routers import auth, plans, products, discounts, subscriptions, invoices, dashboard
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from app import __version__
+from app.database import PROJECT_ROOT, Base, SessionLocal, engine
+from app.routes import auth, catalog, invoices, reports, subscriptions, users
+from app.seed import seed
+
+STATIC_DIR = os.path.join(PROJECT_ROOT, "static")
+INDEX_HTML = os.path.join(PROJECT_ROOT, "templates", "index.html")
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: Create tables and seed data
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed_database(db)
-    finally:
-        db.close()
+async def lifespan(_app: FastAPI):
+    Base.metadata.create_all(engine)
+    if os.getenv("INTRINSIC_SEED", "1") != "0":
+        with SessionLocal() as db:
+            if seed(db):
+                print("[INTRINSIC] Demo data created. Sign in with admin@intrinsic.io / Intrinsic@2026")
     yield
 
-app = FastAPI(
-    title="INTRINSIC - Subscription & Invoicing Management System",
-    description="Production-ready enterprise subscription billing and lifecycle platform with role-based access control.",
-    version="2.0.0",
-    lifespan=lifespan
-)
 
-# Custom Human-Friendly Error Handling for Request Validation
+app = FastAPI(title="INTRINSIC", version=__version__, lifespan=lifespan,
+              description="Subscription & Invoicing Management System")
+
+
+@app.middleware("http")
+async def timing(request: Request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    response.headers["X-Response-Time-ms"] = f"{(time.perf_counter() - started) * 1000:.1f}"
+    return response
+
+
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """
-    Transforms Pydantic's technical validation array into clear, polite, human-readable error messages.
-    """
-    error_items = []
+async def friendly_validation_errors(_request: Request, exc: RequestValidationError):
+    messages = []
     for err in exc.errors():
-        raw_loc = err.get("loc", [])
-        field_tokens = [str(token) for token in raw_loc if token not in ("body", "query", "path")]
-        field_name = " ".join(field_tokens).replace("_", " ").title() if field_tokens else "Field"
-        message = err.get("msg", "Invalid value entered")
-        
-        # Clean up technical validator labels
-        if "value is not a valid" in message.lower():
-            message = "is not formatted correctly"
-        elif "field required" in message.lower() or "missing" in message.lower():
-            message = "is required and cannot be empty"
-        elif "string should have at least" in message.lower():
-            message = message.replace("String should have at least", "must be at least")
+        msg = err.get("msg", "Invalid value.")
+        if msg.startswith("Value error, "):
+            msg = msg[len("Value error, "):]
+        else:
+            field = str(err["loc"][-1]).replace("_", " ") if err.get("loc") else "value"
+            msg = f"{field.capitalize()}: {msg}"
+        messages.append(msg)
+    return JSONResponse({"detail": " ".join(dict.fromkeys(messages))}, status_code=422)
 
-        error_items.append(f"{field_name} {message}".strip())
 
-    clean_summary = "; ".join(error_items) if error_items else "Please verify the information entered in the form."
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT if hasattr(status, "HTTP_422_UNPROCESSABLE_CONTENT") else 422,
-        content={
-            "detail": clean_summary,
-            "user_friendly": True
-        }
-    )
+for module in (auth, users, catalog, subscriptions, invoices, reports):
+    app.include_router(module.router)
 
-# Enable CORS for seamless client integration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Include API Routers
-app.include_router(auth.router)
-app.include_router(plans.router)
-app.include_router(products.router)
-app.include_router(discounts.router)
-app.include_router(subscriptions.router)
-app.include_router(invoices.router)
-app.include_router(dashboard.router)
-
-# Static and UI routes
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/", include_in_schema=False)
-def serve_index():
-    index_file = os.path.join(TEMPLATES_DIR, "index.html")
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
-    return {"message": "INTRINSIC API is running. Navigate to /docs for interactive API specifications."}
+def index():
+    return FileResponse(INDEX_HTML)
 
-@app.get("/health", tags=["Health"])
-def health_check():
-    return {
-        "status": "healthy",
-        "service": "INTRINSIC Subscription & Invoicing Engine",
-        "version": "2.0.0"
-    }
+
+@app.get("/api/health", tags=["System"])
+def health():
+    return {"status": "ok", "version": __version__}
