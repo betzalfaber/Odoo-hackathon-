@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTRINSIC — Subscription & Invoicing OS</title>
+    <!-- Tailwind CSS (Local Vendor Copy with CDN Fallback) -->
+    <script src="/static/vendor/tailwindcss.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js Application -->
+    <script defer src="/static/vendor/alpine.min.js"></script>
+    <script src="/static/js/app.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        /* Smooth transitions for theme toggle */
+        body { transition: background-color 0.2s ease, color 0.2s ease; }
+    </style>
+</head>
+<body x-data="intrinsicApp" class="h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-cloak>
+
+    <!-- Toast Notification Container (Floating) -->
+    <div class="fixed top-4 right-4 z-50 flex flex-col space-y-2 max-w-md w-full pointer-events-none">
+        <template x-for="t in toasts" :key="t.id">
+            <div class="pointer-events-auto px-4 py-3 rounded-lg shadow-xl text-sm font-medium border flex items-center justify-between transition-all transform ease-out duration-300"
+                 :class="{
+                    'bg-emerald-50 border-emerald-300 text-emerald-900 dark:bg-emerald-950 dark:border-emerald-700 dark:text-emerald-100': t.type === 'success',
+                    'bg-red-50 border-red-300 text-red-900 dark:bg-red-950 dark:border-red-700 dark:text-red-100': t.type === 'error',
+                    'bg-blue-50 border-blue-300 text-blue-900 dark:bg-blue-950 dark:border-blue-700 dark:text-blue-100': t.type === 'info'
+                 }">
+                <span x-text="t.message"></span>
+                <button @click="toasts = toasts.filter(item => item.id !== t.id)" class="ml-3 text-xs opacity-75 hover:opacity-100 font-bold">DISMISS</button>
+            </div>
+        </template>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- VIEW 1: MANDATORY INITIAL AUTH VIEW (FULL-SCREEN SIGN IN / REGISTER)      -->
+    <!-- Displayed when !isAuthenticated                                           -->
+    <!-- ========================================================================= -->
+    <div x-show="!isAuthenticated" class="min-h-screen w-full flex flex-col justify-between bg-gradient-to-br from-slate-100 via-white to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4 sm:p-6 lg:p-8">
+        
+        <!-- Top Utility Bar: Branding Badge & Theme Toggle -->
+        <header class="w-full flex items-center justify-between pb-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md shadow-indigo-500/20">
+                    I
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase">INTRINSIC</h1>
+                    <p class="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Subscription & Invoicing OS</p>
+                </div>
+            </div>
+
+            <!-- Top Right Theme Switcher on Login Screen -->
+            <div class="flex items-center space-x-3">
+                <button @click="toggleTheme()" 
+                        class="px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-sm"
+                        :title="theme === 'dark' ? 'Switch to Bright Theme' : 'Switch to Dark Theme'">
+                    <span x-text="theme === 'dark' ? 'Bright Mode' : 'Dark Mode'"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Auth Container -->
+        <main class="w-full max-w-xl mx-auto my-auto py-6">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 backdrop-blur-sm">
+                
+                <!-- Header & Tabs -->
+                <div class="text-center mb-6">
+                    <span class="inline-block px-3 py-1 text-xs font-bold rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 uppercase tracking-widest mb-3">
+                        Odoo Makeathon 2026 Edition
+                    </span>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" x-text="authMode === 'login' ? 'Sign In to INTRINSIC' : 'Customer Account Registration'"></h2>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400" x-text="authMode === 'login' ? 'Access your automated billing engine, lifecycle states, and metrics.' : 'Create your dedicated customer billing portal account.'"></p>
+                </div>
+
+                <!-- Mode Switch Tabs -->
+                <div class="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
+                    <button @click="authMode = 'login'; authError = '';" 
+                            class="py-2 text-sm font-bold rounded-lg transition"
+                            :class="authMode === 'login' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
+                        Sign In
+                    </button>
+                    <button @click="authMode = 'register'; authError = '';" 
+                            class="py-2 text-sm font-bold rounded-lg transition"
+                            :class="authMode === 'register' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
+                        Customer Register
+                    </button>
+                </div>
+
+                <!-- Error Alert Banner -->
+                <div x-show="authError" class="mb-5 p-3 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 text-sm font-medium flex items-center justify-between">
+                    <span x-text="authError"></span>
+                    <button @click="authError = ''" class="ml-2 font-bold text-xs uppercase opacity-70 hover:opacity-100">Dismiss</button>
+                </div>
+
+                <!-- ------------------- FORM 1: SIGN IN ------------------- -->
+                <form x-show="authMode === 'login'" @submit.prevent="handleLogin()" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
+                        <input type="email" x-model="loginForm.email" required placeholder="admin@intrinsic.io" 
+                               class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">Password</label>
+                        <input type="password" x-model="loginForm.password" required placeholder="••••••••••••" 
+                               class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition text-sm">
+                    </div>
+
+                    <button type="submit" :disabled="authLoading"
+                            class="w-full py-3 px-4 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 shadow-lg shadow-indigo-600/30 transition text-sm disabled:opacity-50">
+                        <span x-text="authLoading ? 'Authenticating...' : 'Sign In to INTRINSIC'"></span>
+                    </button>
+                </form>
+
+                <!-- ------------------- FORM 2: CUSTOMER-ONLY REGISTER ------------------- -->
+                <form x-show="authMode === 'register'" @submit.prevent="handleRegister()" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+                            <input type="text" x-model="registerForm.full_name" required placeholder="Jane Doe" 
+                                   class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">Company / Organization</label>
+                            <input type="text" x-model="registerForm.company_name" placeholder="Acme Global Ltd" 
+                                   class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">Work Email</label>
+                        <input type="email" x-model="registerForm.email" required placeholder="jane@acme.com" 
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">Billing Address</label>
+                            <input type="text" x-model="registerForm.billing_address" placeholder="100 Enterprise Way, NY" 
+                                   class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>
+                            <input type="tel" x-model="registerForm.phone" placeholder="+1 (555) 012-3456" 
+                                   class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">Secure Password</label>
+                        <input type="password" x-model="registerForm.password" required placeholder="Create secure password" 
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+
+                    <!-- Strict Password Requirement Checklist (Live Frontend Validation) -->
+                    <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5"
+                         x-data="{ val() { return validatePassword(registerForm.password); } }">
+                        <p class="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">Strict Password Security Policy:</p>
+                        <div class="flex items-center space-x-2" :class="val().length ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500 dark:text-slate-400'">
+                            <span x-text="val().length ? '[✓]' : '[x]'"></span>
+                            <span>Must have more than 8 characters (current: <span x-text="registerForm.password.length"></span>)</span>
+                        </div>
+                        <div class="flex items-center space-x-2" :class="val().uppercase ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500 dark:text-slate-400'">
+                            <span x-text="val().uppercase ? '[✓]' : '[x]'"></span>
+                            <span>At least one uppercase letter (A-Z)</span>
+                        </div>
+                        <div class="flex items-center space-x-2" :class="val().lowercase ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500 dark:text-slate-400'">
+                            <span x-text="val().lowercase ? '[✓]' : '[x]'"></span>
+                            <span>At least one lowercase letter (a-z)</span>
+                        </div>
+                        <div class="flex items-center space-x-2" :class="val().special ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500 dark:text-slate-400'">
+                            <span x-text="val().special ? '[✓]' : '[x]'"></span>
+                            <span>At least one special character (!@#$%^&*...)</span>
+                        </div>
+                    </div>
+
+                    <!-- Note: Public Registration is strictly Customer role -->
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400 bg-indigo-50 dark:bg-indigo-950/40 p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                        Notice: Public registration creates a verified <strong class="text-indigo-600 dark:text-indigo-400">Customer Portal</strong> account. Staff and Administrator accounts are provisioned exclusively via the Admin Portal.
+                    </div>
+
+                    <button type="submit" 
+                            :disabled="authLoading || !validatePassword(registerForm.password).isValid"
+                            class="w-full py-3 px-4 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 shadow-lg shadow-indigo-600/30 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                        <span x-text="authLoading ? 'Registering...' : 'Register Customer Account'"></span>
+                    </button>
+                </form>
+
+                <!-- ------------------- INSTANT PERSONA EVALUATION BUTTONS ------------------- -->
+                <div class="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 text-center mb-3">
+                        Instant Persona Evaluation (For Judges)
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button type="button" @click="quickLogin('admin')"
+                                class="py-2.5 px-3 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900 text-indigo-900 dark:text-indigo-200 text-xs font-bold text-center transition shadow-sm">
+                            Admin Persona
+                            <span class="block text-[10px] font-normal opacity-80">Full RBAC & System Admin</span>
+                        </button>
+                        <button type="button" @click="quickLogin('staff')"
+                                class="py-2.5 px-3 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900 text-emerald-900 dark:text-emerald-200 text-xs font-bold text-center transition shadow-sm">
+                            Internal Staff
+                            <span class="block text-[10px] font-normal opacity-80">Ops & Billing Engine</span>
+                        </button>
+                        <button type="button" @click="quickLogin('customer')"
+                                class="py-2.5 px-3 rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900 text-blue-900 dark:text-blue-200 text-xs font-bold text-center transition shadow-sm">
+                            Customer Portal
+                            <span class="block text-[10px] font-normal opacity-80">Pay & Approve Quotes</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="w-full text-center text-xs text-slate-500 dark:text-slate-500 py-3">
+            INTRINSIC &copy; 2026. Built for Odoo Makeathon. FastAPI + SQLAlchemy + SQLite + Alpine.js + Tailwind CSS.
+        </footer>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- VIEW 2: AUTHENTICATED FULL-WIDTH APPLICATION (MAIN DASHBOARD & PORTAL)    -->
+    <!-- Completely hidden until isAuthenticated === true                          -->
+    <!-- ========================================================================= -->
+    <div x-show="isAuthenticated" class="min-h-screen w-full flex flex-col bg-slate-50 dark:bg-slate-950">
+
+        <!-- Top Navigation Bar (Full Width) -->
+        <header class="w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40">
+            <div class="w-full px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    
+                    <!-- Left: Brand & Badges -->
+                    <div class="flex items-center space-x-4">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-sm">
+                            I
+                        </div>
+                        <div class="flex items-baseline space-x-2">
+                            <span class="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase">INTRINSIC</span>
+                            <span class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300 uppercase">
+                                Makeathon OS
+                            </span>
+                        </div>
+
+                        <!-- Navigation Tabs (Desktop) -->
+                        <nav class="hidden md:flex items-center space-x-1 ml-6">
+                            <!-- Dashboard (Admin & Staff) -->
+                            <template x-if="currentUser && currentUser.role !== 'customer'">
+                                <button @click="activeTab = 'dashboard'" 
+                                        class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition"
+                                        :class="activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                                    Dashboard
+                                </button>
+                            </template>
+
+                            <!-- Subscriptions -->
+                            <button @click="activeTab = 'subscriptions'" 
+                                    class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition"
+                                    :class="activeTab === 'subscriptions' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                                Subscriptions
+                            </button>
+
+                            <!-- Invoices -->
+                            <button @click="activeTab = 'invoices'" 
+                                    class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition"
+                                    :class="activeTab === 'invoices' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                                Invoices
+                            </button>
+
+                            <!-- Discount Rules (Admin & Staff) -->
+                            <template x-if="currentUser && currentUser.role !== 'customer'">
+                                <button @click="activeTab = 'discounts'" 
+                                        class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition"
+                                        :class="activeTab === 'discounts' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                                    Discounts
+                                </button>
+                            </template>
+
+                            <!-- Team & Staff Management (Admin Only) -->
+                            <template x-if="currentUser && currentUser.role === 'admin'">
+                                <button @click="activeTab = 'team'" 
+                                        class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition"
+                                        :class="activeTab === 'team' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                                    Team & Staff
+                                </button>
+                            </template>
+
+                            <!-- Customer Portal Tab (Customer Only) -->
+                            <template x-if="currentUser && currentUser.role === 'customer'">
+                                <button @click="activeTab = 'customer_portal'" 
+                                        class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition"
+                                        :class="activeTab === 'customer_portal' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                                    My Services & Invoices
+                                </button>
+                            </template>
+                        </nav>
+                    </div>
+
+                    <!-- Right Controls: Role Badge, Theme Toggle, Sign Out -->
+                    <div class="flex items-center space-x-3">
+                        
+                        <!-- Role Badge -->
+                        <template x-if="currentUser">
+                            <div class="hidden sm:flex items-center space-x-2 px-2.5 py-1 rounded-lg border text-xs font-bold"
+                                 :class="{
+                                    'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-950/50 dark:border-purple-800 dark:text-purple-300': currentUser.role === 'admin',
+                                    'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-300': currentUser.role === 'staff',
+                                    'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-300': currentUser.role === 'customer'
+                                 }">
+                                <span class="w-2 h-2 rounded-full"
+                                      :class="{
+                                        'bg-purple-500': currentUser.role === 'admin',
+                                        'bg-emerald-500': currentUser.role === 'staff',
+                                        'bg-blue-500': currentUser.role === 'customer'
+                                      }"></span>
+                                <span x-text="currentUser.role.toUpperCase()"></span>
+                                <span class="opacity-75 font-normal" x-text="'(' + currentUser.full_name + ')'"></span>
+                            </div>
+                        </template>
+
+                        <!-- Theme Toggle Button -->
+                        <button @click="toggleTheme()" 
+                                class="px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-sm">
+                            <span x-text="theme === 'dark' ? 'Bright Mode' : 'Dark Mode'"></span>
+                        </button>
+
+                        <!-- Clear Sign Out Button (Strict Requirement) -->
+                        <button @click="signOut()" 
+                                class="px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 hover:bg-red-100 dark:bg-red-950/50 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 text-xs font-bold uppercase tracking-wider transition">
+                            Sign Out
+                        </button>
+
+                        <!-- Mobile Menu Button -->
+                        <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                            Menu
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Mobile Menu Dropdown -->
+                <div x-show="mobileMenuOpen" class="md:hidden py-3 border-t border-slate-200 dark:border-slate-800 space-y-1">
+                    <template x-if="currentUser && currentUser.role !== 'customer'">
+                        <button @click="activeTab = 'dashboard'; mobileMenuOpen = false" class="w-full text-left px-3 py-2 text-sm font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                            Dashboard
+                        </button>
+                    </template>
+                    <button @click="activeTab = 'subscriptions'; mobileMenuOpen = false" class="w-full text-left px-3 py-2 text-sm font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                        Subscriptions
+                    </button>
+                    <button @click="activeTab = 'invoices'; mobileMenuOpen = false" class="w-full text-left px-3 py-2 text-sm font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                        Invoices
+                    </button>
+                    <template x-if="currentUser && currentUser.role !== 'customer'">
+                        <button @click="activeTab = 'discounts'; mobileMenuOpen = false" class="w-full text-left px-3 py-2 text-sm font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                            Discount Rules
+                        </button>
+                    </template>
+                    <template x-if="currentUser && currentUser.role === 'admin'">
+                        <button @click="activeTab = 'team'; mobileMenuOpen = false" class="w-full text-left px-3 py-2 text-sm font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                            Team & Staff Management
+                        </button>
+                    </template>
+                    <template x-if="currentUser && currentUser.role === 'customer'">
+                        <button @click="activeTab = 'customer_portal'; mobileMenuOpen = false" class="w-full text-left px-3 py-2 text-sm font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                            Customer Portal
+                        </button>
+                    </template>
+                </div>
+
+            </div>
+        </header>
+
+        <!-- Main Workspace (Full Width, Fluid Grid, Proportional Padding) -->
+        <main class="w-full flex-1 px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- TAB 1: EXECUTIVE KPI DASHBOARD (ADMIN & STAFF)                -->
+            <!-- ------------------------------------------------------------- -->
+            <div x-show="activeTab === 'dashboard'" class="space-y-6">
+                
+                <!-- Action Header Row -->
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Executive Dashboard</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Live telemetry, revenue engine, and lifecycle performance.</p>
+                    </div>
+
+                    <!-- Clean Action Buttons (Strictly NO SVG ICONS inside buttons) -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <template x-if="currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')">
+                            <!-- Rule: Remove vector/icon symbols inside dashboard buttons like Run Billing Cycle -->
+                            <button @click="runBillingCycle()" :disabled="isProcessing"
+                                    class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition disabled:opacity-50">
+                                Run Billing Cycle
+                            </button>
+                        </template>
+
+                        <button @click="modals.newSub = true"
+                                class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                            New Subscription
+                        </button>
+
+                        <button @click="refreshAllData()"
+                                class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                            Sync Data
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4 Real-time KPI Metric Cards (Full Width 4-Col Grid) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                    
+                    <!-- KPI 1: Monthly Recurring Revenue (MRR) -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Monthly Recurring Revenue (MRR)</span>
+                        <div class="mt-2 text-2xl sm:text-3xl font-black text-indigo-600 dark:text-indigo-400" x-text="formatCurrency(kpis.mrr)"></div>
+                        <div class="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                            <span>Normalized billing runs</span>
+                            <span class="text-emerald-600 dark:text-emerald-400 font-bold">Live Active</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 2: Active Subscriptions -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Active Subscriptions</span>
+                        <div class="mt-2 text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400" x-text="kpis.active_subscriptions"></div>
+                        <div class="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                            <span>Draft/Quotes in pipeline: <strong x-text="kpis.draft_quotations_count"></strong></span>
+                            <span class="text-emerald-600 font-bold">Healthy</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3: Overdue Invoices -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Overdue Receivables</span>
+                        <div class="mt-2 text-2xl sm:text-3xl font-black text-red-600 dark:text-red-400" x-text="formatCurrency(kpis.overdue_invoices_amount)"></div>
+                        <div class="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                            <span>Count: <strong x-text="kpis.overdue_invoices_count"></strong> past due</span>
+                            <span class="text-red-600 dark:text-red-400 font-bold" x-show="kpis.overdue_invoices_count > 0">Action Required</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 4: Total Revenue Settled -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Settled Revenue</span>
+                        <div class="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white" x-text="formatCurrency(kpis.total_revenue_settled)"></div>
+                        <div class="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                            <span>Total customers: <strong x-text="kpis.total_customers_count"></strong></span>
+                            <span class="text-indigo-600 dark:text-indigo-400 font-bold">100% Reconciled</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Recent Activity & Quick State Machine Pipeline -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Subscriptions Snapshot -->
+                    <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">Active Lifecycle Subscriptions</h3>
+                            <button @click="activeTab = 'subscriptions'" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">View All Subscriptions</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead>
+                                    <tr class="border-b border-slate-200 dark:border-slate-800 text-slate-500">
+                                        <th class="py-2.5">Code</th>
+                                        <th class="py-2.5">Customer</th>
+                                        <th class="py-2.5">Plan</th>
+                                        <th class="py-2.5">Amount</th>
+                                        <th class="py-2.5">State</th>
+                                        <th class="py-2.5 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                    <template x-for="sub in subscriptions.slice(0, 5)" :key="sub.id">
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                                            <td class="py-2.5 font-mono font-bold text-slate-900 dark:text-white" x-text="sub.subscription_code"></td>
+                                            <td class="py-2.5" x-text="sub.customer_name"></td>
+                                            <td class="py-2.5" x-text="sub.plan_name"></td>
+                                            <td class="py-2.5 font-bold" x-text="formatCurrency(sub.total_amount)"></td>
+                                            <td class="py-2.5">
+                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase" :class="getStatusClass(sub.status)" x-text="sub.status"></span>
+                                            </td>
+                                            <td class="py-2.5 text-right">
+                                                <button @click="openSubDetail(sub)" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 text-xs font-bold">
+                                                    Manage
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Recent Billing Invoices Stream -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">Recent Invoices</h3>
+                            <button @click="activeTab = 'invoices'" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">All Invoices</button>
+                        </div>
+                        <div class="space-y-3">
+                            <template x-for="inv in invoices.slice(0, 5)" :key="inv.id">
+                                <div class="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between text-xs">
+                                    <div>
+                                        <div class="font-mono font-bold text-slate-900 dark:text-white" x-text="inv.invoice_number"></div>
+                                        <div class="text-slate-500" x-text="inv.customer_name"></div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-slate-900 dark:text-white" x-text="formatCurrency(inv.total_amount)"></div>
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase" :class="getStatusClass(inv.status)" x-text="inv.status"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- TAB 2: SUBSCRIPTION LIFECYCLE MANAGEMENT                      -->
+            <!-- ------------------------------------------------------------- -->
+            <div x-show="activeTab === 'subscriptions'" class="space-y-6">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Subscription State Machine</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">State Transitions: Draft &rarr; Quotation &rarr; Confirmed &rarr; Active &rarr; Closed</p>
+                    </div>
+
+                    <!-- Clean Action Buttons (No SVG) -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select x-model="subStatusFilter" @change="loadSubscriptions()"
+                                class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                            <option value="all">All States</option>
+                            <option value="draft">Draft</option>
+                            <option value="quotation">Quotation</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="active">Active</option>
+                            <option value="closed">Closed</option>
+                        </select>
+
+                        <button @click="modals.newSub = true"
+                                class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 transition">
+                            Create Subscription
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Subscriptions Full-Width Table -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                                <tr>
+                                    <th class="py-3 px-4 font-bold uppercase">Code</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Customer</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Plan</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Interval</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Pricing</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Next Bill</th>
+                                    <th class="py-3 px-4 font-bold uppercase">State</th>
+                                    <th class="py-3 px-4 font-bold uppercase text-right">Lifecycle Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                <template x-for="sub in subscriptions" :key="sub.id">
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                        <td class="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white" x-text="sub.subscription_code"></td>
+                                        <td class="py-3 px-4">
+                                            <div class="font-bold text-slate-900 dark:text-white" x-text="sub.customer_name"></div>
+                                            <div class="text-[11px] text-slate-500" x-text="sub.customer_email"></div>
+                                        </td>
+                                        <td class="py-3 px-4 font-medium" x-text="sub.plan_name"></td>
+                                        <td class="py-3 px-4 uppercase text-[11px] font-semibold text-slate-500" x-text="sub.billing_interval"></td>
+                                        <td class="py-3 px-4">
+                                            <div class="font-bold text-slate-900 dark:text-white" x-text="formatCurrency(sub.total_amount)"></div>
+                                            <div class="text-[10px] text-slate-400" x-text="'Subtotal: ' + formatCurrency(sub.subtotal)"></div>
+                                        </td>
+                                        <td class="py-3 px-4 text-slate-500" x-text="formatDate(sub.next_billing_date)"></td>
+                                        <td class="py-3 px-4">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" :class="getStatusClass(sub.status)" x-text="sub.status"></span>
+                                        </td>
+                                        <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                                            <!-- Lifecycle State Transitions Buttons (Clean text, No SVG) -->
+                                            
+                                            <!-- Draft -> Send Quotation -->
+                                            <template x-if="sub.status === 'draft'">
+                                                <button @click="transitionSubscription(sub.id, 'quotation', 'Dispatched proposal quote')"
+                                                        class="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] transition">
+                                                    Send Quotation
+                                                </button>
+                                            </template>
+
+                                            <!-- Quotation -> Confirm Order -->
+                                            <template x-if="sub.status === 'quotation'">
+                                                <button @click="transitionSubscription(sub.id, 'confirmed', 'Order confirmed by buyer')"
+                                                        class="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition">
+                                                    Confirm Order
+                                                </button>
+                                            </template>
+
+                                            <!-- Confirmed -> Activate -->
+                                            <template x-if="sub.status === 'confirmed' && (currentUser.role === 'admin' || currentUser.role === 'staff')">
+                                                <button @click="transitionSubscription(sub.id, 'active', 'Billing authorized & activated')"
+                                                        class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition">
+                                                    Activate
+                                                </button>
+                                            </template>
+
+                                            <!-- Active -> Close Contract -->
+                                            <template x-if="sub.status === 'active'">
+                                                <button @click="transitionSubscription(sub.id, 'closed', 'Contract ended per request')"
+                                                        class="px-2.5 py-1 rounded bg-rose-500 hover:bg-rose-600 text-white font-bold text-[11px] transition">
+                                                    Close Contract
+                                                </button>
+                                            </template>
+
+                                            <!-- View Full Details & Audit Trail -->
+                                            <button @click="openSubDetail(sub)"
+                                                    class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 text-[11px] font-bold">
+                                                Audit Trail
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- TAB 3: INVOICES & AUTOMATED BILLING LEDGER                     -->
+            <!-- ------------------------------------------------------------- -->
+            <div x-show="activeTab === 'invoices'" class="space-y-6">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Invoice Ledger & Receivables</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Automated cycle invoices, customer payments, and overdue tracking.</p>
+                    </div>
+
+                    <!-- Clean Action Buttons (No SVG) -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select x-model="invStatusFilter" @change="loadInvoices()"
+                                class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                            <option value="all">All Statuses</option>
+                            <option value="posted">Posted (Unpaid)</option>
+                            <option value="paid">Paid</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="draft">Draft</option>
+                            <option value="void">Void</option>
+                        </select>
+
+                        <template x-if="currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')">
+                            <button @click="runBillingCycle()" :disabled="isProcessing"
+                                    class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 transition disabled:opacity-50">
+                                Run Billing Cycle
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Invoices Full-Width Table -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                                <tr>
+                                    <th class="py-3 px-4 font-bold uppercase">Invoice #</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Customer</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Subscription</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Issue Date</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Due Date</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Total Due</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Status</th>
+                                    <th class="py-3 px-4 font-bold uppercase text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                <template x-for="inv in invoices" :key="inv.id">
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                        <td class="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white" x-text="inv.invoice_number"></td>
+                                        <td class="py-3 px-4">
+                                            <div class="font-bold text-slate-900 dark:text-white" x-text="inv.customer_name"></div>
+                                            <div class="text-[11px] text-slate-500" x-text="inv.customer_email"></div>
+                                        </td>
+                                        <td class="py-3 px-4 font-mono text-[11px]" x-text="inv.subscription_code || 'Manual Invoice'"></td>
+                                        <td class="py-3 px-4 text-slate-500" x-text="formatDate(inv.issue_date)"></td>
+                                        <td class="py-3 px-4 text-slate-500 font-semibold" x-text="formatDate(inv.due_date)"></td>
+                                        <td class="py-3 px-4 font-bold text-slate-900 dark:text-white" x-text="formatCurrency(inv.total_amount)"></td>
+                                        <td class="py-3 px-4">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" :class="getStatusClass(inv.status)" x-text="inv.status"></span>
+                                        </td>
+                                        <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                                            <!-- Pay Invoice Action (For Posted/Overdue) -->
+                                            <template x-if="inv.status === 'posted' || inv.status === 'overdue'">
+                                                <button @click="openPayModal(inv)"
+                                                        class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition">
+                                                    Pay Invoice
+                                                </button>
+                                            </template>
+
+                                            <!-- Void Action (Staff / Admin) -->
+                                            <template x-if="(inv.status === 'posted' || inv.status === 'overdue') && (currentUser.role === 'admin' || currentUser.role === 'staff')">
+                                                <button @click="handleVoidInvoice(inv.id)"
+                                                        class="px-2.5 py-1 rounded border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 text-[11px] font-bold">
+                                                    Void
+                                                </button>
+                                            </template>
+
+                                            <!-- Paid receipt label -->
+                                            <template x-if="inv.status === 'paid'">
+                                                <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Paid & Settled</span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- TAB 4: DISCOUNT RULES MANAGER (ADMIN & STAFF)                 -->
+            <!-- ------------------------------------------------------------- -->
+            <div x-show="activeTab === 'discounts'" class="space-y-6">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Discount Rule Manager</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Configured promotional codes and tiered percentage/fixed deductions.</p>
+                    </div>
+
+                    <!-- Clean Action Button (No SVG) -->
+                    <button @click="modals.newDiscount = true"
+                            class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 transition">
+                        New Discount Rule
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <template x-for="d in discounts" :key="d.id">
+                        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-mono font-black text-sm" x-text="d.code"></span>
+                                <span class="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-400">Active</span>
+                            </div>
+                            <p class="text-xs text-slate-600 dark:text-slate-400 font-medium" x-text="d.description"></p>
+                            <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                                <div>
+                                    <span class="text-slate-500">Deduction:</span>
+                                    <strong class="text-slate-900 dark:text-white" x-text="d.discount_type === 'percentage' ? d.value + '%' : '$' + d.value"></strong>
+                                </div>
+                                <div>
+                                    <span class="text-slate-500">Usages:</span>
+                                    <strong class="text-slate-900 dark:text-white" x-text="d.usage_count"></strong>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+            </div>
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- TAB 5: ADMIN MANAGEMENT PORTAL (STAFF & ADMIN PROVISIONING)   -->
+            <!-- Restricted strictly to role === 'admin'                       -->
+            <!-- ------------------------------------------------------------- -->
+            <div x-show="activeTab === 'team' && currentUser && currentUser.role === 'admin'" class="space-y-6">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Admin Management Portal</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Securely provision, view, and assign new Internal Staff or Admin accounts.</p>
+                    </div>
+
+                    <!-- Clean Action Button (No SVG) -->
+                    <button @click="modals.adminStaff = true"
+                            class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition">
+                        Add Staff / Admin Member
+                    </button>
+                </div>
+
+                <!-- Team Accounts Table -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                                <tr>
+                                    <th class="py-3 px-4 font-bold uppercase">Name</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Email</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Role</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Department</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Status</th>
+                                    <th class="py-3 px-4 font-bold uppercase">Joined</th>
+                                    <th class="py-3 px-4 font-bold uppercase text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                <template x-for="user in teamUsers" :key="user.id">
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                        <td class="py-3 px-4 font-bold text-slate-900 dark:text-white" x-text="user.full_name"></td>
+                                        <td class="py-3 px-4 font-mono text-slate-600 dark:text-slate-400" x-text="user.email"></td>
+                                        <td class="py-3 px-4">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
+                                                  :class="{
+                                                    'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300': user.role === 'admin',
+                                                    'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300': user.role === 'staff',
+                                                    'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300': user.role === 'customer'
+                                                  }"
+                                                  x-text="user.role"></span>
+                                        </td>
+                                        <td class="py-3 px-4 text-slate-500" x-text="user.department || 'External Customer'"></td>
+                                        <td class="py-3 px-4">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                                                  :class="user.is_active ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'"
+                                                  x-text="user.is_active ? 'Active' : 'Deactivated'"></span>
+                                        </td>
+                                        <td class="py-3 px-4 text-slate-500" x-text="formatDate(user.created_at)"></td>
+                                        <td class="py-3 px-4 text-right">
+                                            <template x-if="user.id !== currentUser.id">
+                                                <button @click="toggleUserStatus(user.id)"
+                                                        class="px-2.5 py-1 rounded text-xs font-bold border transition"
+                                                        :class="user.is_active ? 'border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-950/40' : 'border-emerald-300 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-700 dark:hover:bg-emerald-950/40'">
+                                                    <span x-text="user.is_active ? 'Deactivate' : 'Activate'"></span>
+                                                </button>
+                                            </template>
+                                            <template x-if="user.id === currentUser.id">
+                                                <span class="text-slate-400 font-semibold text-[11px] italic">Current Session</span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- TAB 6: CUSTOMER PORTAL (CLIENT VIEW)                          -->
+            <!-- ------------------------------------------------------------- -->
+            <div x-show="activeTab === 'customer_portal'" class="space-y-6">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Customer Portal</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Review quotes, manage your active subscriptions, and settle invoices.</p>
+                    </div>
+
+                    <!-- Clean Action Button (No SVG) -->
+                    <button @click="modals.newSub = true"
+                            class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 transition">
+                        Request New Service
+                    </button>
+                </div>
+
+                <!-- Customer KPI Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-500">My Active Subscriptions</span>
+                        <div class="mt-2 text-3xl font-black text-indigo-600 dark:text-indigo-400" x-text="kpis.active_subscriptions"></div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Overdue Invoices</span>
+                        <div class="mt-2 text-3xl font-black text-red-600 dark:text-red-400" x-text="formatCurrency(kpis.overdue_invoices_amount)"></div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Lifetime Settled</span>
+                        <div class="mt-2 text-3xl font-black text-emerald-600 dark:text-emerald-400" x-text="formatCurrency(kpis.total_revenue_settled)"></div>
+                    </div>
+                </div>
+
+                <!-- Customer Invoices List -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-4">Your Invoices & Payment Status</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                                <tr>
+                                    <th class="py-2.5 px-3 uppercase">Invoice #</th>
+                                    <th class="py-2.5 px-3 uppercase">Due Date</th>
+                                    <th class="py-2.5 px-3 uppercase">Total</th>
+                                    <th class="py-2.5 px-3 uppercase">Status</th>
+                                    <th class="py-2.5 px-3 uppercase text-right">Payment</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                <template x-for="inv in invoices" :key="inv.id">
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                        <td class="py-3 px-3 font-mono font-bold text-slate-900 dark:text-white" x-text="inv.invoice_number"></td>
+                                        <td class="py-3 px-3 text-slate-500" x-text="formatDate(inv.due_date)"></td>
+                                        <td class="py-3 px-3 font-bold" x-text="formatCurrency(inv.total_amount)"></td>
+                                        <td class="py-3 px-3">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase" :class="getStatusClass(inv.status)" x-text="inv.status"></span>
+                                        </td>
+                                        <td class="py-3 px-3 text-right">
+                                            <template x-if="inv.status === 'posted' || inv.status === 'overdue'">
+                                                <button @click="openPayModal(inv)"
+                                                        class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition">
+                                                    Pay Now
+                                                </button>
+                                            </template>
+                                            <template x-if="inv.status === 'paid'">
+                                                <span class="text-emerald-600 font-bold">Paid</span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+        <!-- ========================================================================= -->
+        <!-- MODAL 1: ADMIN STAFF & ADMIN PROVISIONING MODAL                           -->
+        <!-- ========================================================================= -->
+        <div x-show="modals.adminStaff" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modals.adminStaff = false" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <h3 class="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Provision Internal Staff or Admin</h3>
+                    <button @click="modals.adminStaff = false" class="text-slate-400 hover:text-slate-600 font-bold">Close</button>
+                </div>
+
+                <form @submit.prevent="handleCreateTeamUser()" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+                        <input type="text" x-model="adminUserForm.full_name" required placeholder="Elena Rostova"
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
+                        <input type="email" x-model="adminUserForm.email" required placeholder="elena@intrinsic.io"
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Assigned Role</label>
+                            <select x-model="adminUserForm.role" required
+                                    class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold">
+                                <option value="staff">Internal Staff</option>
+                                <option value="admin">Administrator</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Department</label>
+                            <input type="text" x-model="adminUserForm.department" required placeholder="Billing Operations"
+                                   class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Temporary Initial Password</label>
+                        <input type="password" x-model="adminUserForm.password" required placeholder="Set password"
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                    </div>
+
+                    <!-- Password Rules Validation Indicator for Admin Portal -->
+                    <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1"
+                         x-data="{ val() { return validatePassword(adminUserForm.password); } }">
+                        <p class="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">Strict Security Policy Validation:</p>
+                        <div class="flex items-center space-x-2" :class="val().length ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500'">
+                            <span x-text="val().length ? '[✓]' : '[x]'"></span>
+                            <span>> 8 characters (current: <span x-text="adminUserForm.password.length"></span>)</span>
+                        </div>
+                        <div class="flex items-center space-x-2" :class="val().uppercase ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500'">
+                            <span x-text="val().uppercase ? '[✓]' : '[x]'"></span>
+                            <span>At least one uppercase letter (A-Z)</span>
+                        </div>
+                        <div class="flex items-center space-x-2" :class="val().lowercase ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500'">
+                            <span x-text="val().lowercase ? '[✓]' : '[x]'"></span>
+                            <span>At least one lowercase letter (a-z)</span>
+                        </div>
+                        <div class="flex items-center space-x-2" :class="val().special ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500'">
+                            <span x-text="val().special ? '[✓]' : '[x]'"></span>
+                            <span>At least one special character</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-3 flex justify-end space-x-2">
+                        <button type="button" @click="modals.adminStaff = false"
+                                class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold uppercase">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="isProcessing || !validatePassword(adminUserForm.password).isValid"
+                                class="px-4 py-2 rounded-xl text-xs font-bold uppercase text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40">
+                            Create Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- MODAL 2: NEW SUBSCRIPTION MODAL                                           -->
+        <!-- ========================================================================= -->
+        <div x-show="modals.newSub" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modals.newSub = false" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <h3 class="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Initiate Subscription</h3>
+                    <button @click="modals.newSub = false" class="text-slate-400 hover:text-slate-600 font-bold">Close</button>
+                </div>
+
+                <form @submit.prevent="handleCreateSubscription()" class="space-y-4">
+                    <!-- Customer selection (Staff/Admin) -->
+                    <template x-if="currentUser && currentUser.role !== 'customer'">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Target Customer</label>
+                            <select x-model="newSubForm.customer_id" required
+                                    class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                                <option value="">Select Customer Account...</option>
+                                <template x-for="c in customers" :key="c.id">
+                                    <option :value="c.id" x-text="c.full_name + ' (' + c.email + ')'"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </template>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Product Plan</label>
+                        <select x-model="newSubForm.plan_id" required
+                                class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold">
+                            <option value="">Choose Plan...</option>
+                            <template x-for="p in plans" :key="p.id">
+                                <option :value="p.id" x-text="p.name + ' — ' + formatCurrency(p.unit_price) + ' / ' + p.billing_interval"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Billing Cadence</label>
+                            <select x-model="newSubForm.billing_interval" required
+                                    class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                                <option value="monthly">Monthly</option>
+                                <option value="quarterly">Quarterly</option>
+                                <option value="annually">Annually</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Quantity</label>
+                            <input type="number" min="1" x-model="newSubForm.quantity" required
+                                   class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Discount Code (Optional)</label>
+                        <input type="text" x-model="newSubForm.discount_code" placeholder="WELCOME10 or ODOO_VIP"
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm uppercase">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Notes / Terms</label>
+                        <textarea x-model="newSubForm.notes" rows="2" placeholder="Custom contract agreement notes..."
+                                  class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"></textarea>
+                    </div>
+
+                    <div class="pt-3 flex justify-end space-x-2">
+                        <button type="button" @click="modals.newSub = false"
+                                class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold uppercase">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="isProcessing"
+                                class="px-4 py-2 rounded-xl text-xs font-bold uppercase text-white bg-indigo-600 hover:bg-indigo-700">
+                            Create Subscription
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- MODAL 3: NEW DISCOUNT RULE MODAL                                          -->
+        <!-- ========================================================================= -->
+        <div x-show="modals.newDiscount" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modals.newDiscount = false" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <h3 class="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Create Discount Rule</h3>
+                    <button @click="modals.newDiscount = false" class="text-slate-400 hover:text-slate-600 font-bold">Close</button>
+                </div>
+
+                <form @submit.prevent="handleCreateDiscount()" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Promo Code</label>
+                        <input type="text" x-model="newDiscountForm.code" required placeholder="SUMMER25"
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-mono uppercase">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                        <input type="text" x-model="newDiscountForm.description" required placeholder="25% off mid-season promotion"
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Type</label>
+                            <select x-model="newDiscountForm.discount_type" required
+                                    class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                                <option value="percentage">Percentage (%)</option>
+                                <option value="fixed">Fixed Deduction ($)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Value</label>
+                            <input type="number" step="0.01" min="0" x-model="newDiscountForm.value" required
+                                   class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Minimum Spend ($)</label>
+                        <input type="number" step="0.01" min="0" x-model="newDiscountForm.min_spend"
+                               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                    </div>
+
+                    <div class="pt-3 flex justify-end space-x-2">
+                        <button type="button" @click="modals.newDiscount = false"
+                                class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold uppercase">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="isProcessing"
+                                class="px-4 py-2 rounded-xl text-xs font-bold uppercase text-white bg-indigo-600 hover:bg-indigo-700">
+                            Save Rule
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- MODAL 4: SUBSCRIPTION DETAILS & AUDIT TRAIL MODAL                         -->
+        <!-- ========================================================================= -->
+        <div x-show="modals.subDetail && selectedSubscription" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modals.subDetail = false" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
+                <template x-if="selectedSubscription">
+                    <div>
+                        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <span class="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400" x-text="selectedSubscription.subscription_code"></span>
+                                <h3 class="text-xl font-black text-slate-900 dark:text-white uppercase" x-text="selectedSubscription.plan_name"></h3>
+                            </div>
+                            <button @click="modals.subDetail = false" class="text-slate-400 hover:text-slate-600 font-bold">Close</button>
+                        </div>
+
+                        <!-- Info Grid -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 my-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-xs">
+                            <div>
+                                <span class="text-slate-500 block">Current State</span>
+                                <span class="font-bold uppercase text-indigo-600 dark:text-indigo-400" x-text="selectedSubscription.status"></span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500 block">Total Rate</span>
+                                <span class="font-bold text-slate-900 dark:text-white" x-text="formatCurrency(selectedSubscription.total_amount)"></span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500 block">Customer</span>
+                                <span class="font-bold text-slate-900 dark:text-white" x-text="selectedSubscription.customer_name"></span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500 block">Next Cycle</span>
+                                <span class="font-bold text-slate-900 dark:text-white" x-text="formatDate(selectedSubscription.next_billing_date)"></span>
+                            </div>
+                        </div>
+
+                        <!-- Audit Logs List -->
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Lifecycle Audit Trail</h4>
+                            <div class="space-y-2 max-h-48 overflow-y-auto">
+                                <template x-for="log in selectedSubscription.audit_logs" :key="log.id">
+                                    <div class="p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 text-xs flex items-center justify-between">
+                                        <div>
+                                            <span class="font-bold uppercase" x-text="log.from_status + ' → ' + log.to_status"></span>
+                                            <p class="text-[11px] text-slate-500" x-text="log.reason"></p>
+                                        </div>
+                                        <div class="text-right text-[11px] text-slate-400">
+                                            <span x-text="log.changed_by_name || 'System'"></span>
+                                            <div x-text="formatDate(log.created_at)"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- MODAL 5: INSTANT INVOICE PAYMENT MODAL                                    -->
+        <!-- ========================================================================= -->
+        <div x-show="modals.payInvoice && selectedInvoice" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modals.payInvoice = false" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                <template x-if="selectedInvoice">
+                    <div>
+                        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <span class="text-xs font-mono font-bold text-indigo-600" x-text="selectedInvoice.invoice_number"></span>
+                                <h3 class="text-lg font-black text-slate-900 dark:text-white uppercase">Settle Invoice</h3>
+                            </div>
+                            <button @click="modals.payInvoice = false" class="text-slate-400 hover:text-slate-600 font-bold">Close</button>
+                        </div>
+
+                        <div class="my-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-center">
+                            <span class="text-xs text-slate-500 uppercase font-bold">Total Amount Due</span>
+                            <div class="text-3xl font-black text-slate-900 dark:text-white mt-1" x-text="formatCurrency(selectedInvoice.total_amount)"></div>
+                            <span class="text-xs text-slate-400" x-text="'Due by ' + formatDate(selectedInvoice.due_date)"></span>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300">Select Payment Method</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" @click="handlePayInvoice('credit_card')"
+                                        class="py-3 px-3 rounded-xl border border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 font-bold text-xs text-center transition">
+                                    Corporate Visa / MC
+                                </button>
+                                <button type="button" @click="handlePayInvoice('bank_transfer')"
+                                        class="py-3 px-3 rounded-xl border border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 font-bold text-xs text-center transition">
+                                    Direct Wire / ACH
+                                </button>
+                                <button type="button" @click="handlePayInvoice('upi')"
+                                        class="py-3 px-3 rounded-xl border border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 font-bold text-xs text-center transition">
+                                    Instant UPI / QR
+                                </button>
+                                <button type="button" @click="handlePayInvoice('stripe_sim')"
+                                        class="py-3 px-3 rounded-xl border border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 font-bold text-xs text-center transition">
+                                    Odoo Sync Bridge
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- MODAL 6: BILLING CYCLE RESULT MODAL                                       -->
+        <!-- ========================================================================= -->
+        <div x-show="modals.billingCycle && billingCycleResult" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modals.billingCycle = false" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+                <template x-if="billingCycleResult">
+                    <div>
+                        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Cycle Execution Complete</span>
+                                <h3 class="text-lg font-black text-slate-900 dark:text-white uppercase mt-1">Automated Billing Engine Summary</h3>
+                            </div>
+                            <button @click="modals.billingCycle = false" class="text-slate-400 hover:text-slate-600 font-bold">Close</button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 my-4">
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                                <span class="text-xs text-slate-500">Invoices Generated</span>
+                                <div class="text-2xl font-black text-indigo-600 dark:text-indigo-400" x-text="billingCycleResult.invoices_generated"></div>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                                <span class="text-xs text-slate-500">Total Billed</span>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white" x-text="formatCurrency(billingCycleResult.total_amount_billed)"></div>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                                <span class="text-xs text-slate-500">Subscriptions Advanced</span>
+                                <div class="text-2xl font-black text-emerald-600" x-text="billingCycleResult.subscriptions_advanced"></div>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                                <span class="text-xs text-slate-500">Overdue Invoices Flagged</span>
+                                <div class="text-2xl font-black text-red-600" x-text="billingCycleResult.overdue_marked"></div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1 max-h-40 overflow-y-auto p-2 rounded-xl bg-slate-50 dark:bg-slate-800/30 text-xs font-mono text-slate-600 dark:text-slate-400">
+                            <template x-for="item in billingCycleResult.details" :key="item">
+                                <div x-text="'• ' + item"></div>
+                            </template>
+                        </div>
+
+                        <div class="pt-4 flex justify-end">
+                            <button @click="modals.billingCycle = false" class="px-4 py-2 rounded-xl text-xs font-bold uppercase text-white bg-indigo-600 hover:bg-indigo-700">
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

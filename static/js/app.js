@@ -1,545 +1,606 @@
-/**
- * INTRINSIC - Subscription & Invoicing Platform
- * Reactive UI Controller with Alpine.js
- * Strictly enforces zero emojis, full-screen initial authentication,
- * fluid screen scaling, dark/bright mode toggle, and human-friendly error messages.
- */
+// INTRINSIC - Next-Gen Subscription & Invoicing OS
+// Alpine.js Application Core
 
-document.addEventListener("alpine:init", () => {
-    Alpine.data("intrinsicApp", () => ({
-        // App Identity
-        appName: "INTRINSIC",
+document.addEventListener('alpine:init', () => {
+    Alpine.data('intrinsicApp', () => ({
+        // Theme Management
+        theme: localStorage.getItem('intrinsic_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
         
-        // Initial Authentication & Session State
-        initialLoading: true,
-        isAuthenticated: false,
+        // Auth State
+        token: localStorage.getItem('intrinsic_token') || '',
         currentUser: null,
+        isAuthenticated: false,
+        authMode: 'login', // 'login' or 'register'
+        authLoading: false,
+        authError: '',
+        authSuccess: '',
 
-        // Theme Switcher State ('dark' or 'light')
-        theme: "dark",
+        // Form Models
+        loginForm: {
+            email: '',
+            password: ''
+        },
+        registerForm: {
+            full_name: '',
+            email: '',
+            password: '',
+            company_name: '',
+            billing_address: '',
+            phone: ''
+        },
+        adminUserForm: {
+            full_name: '',
+            email: '',
+            password: '',
+            role: 'staff',
+            department: 'Billing Operations'
+        },
+        newSubForm: {
+            customer_id: '',
+            plan_id: '',
+            billing_interval: 'monthly',
+            quantity: 1,
+            discount_code: '',
+            notes: ''
+        },
+        newDiscountForm: {
+            code: '',
+            description: '',
+            discount_type: 'percentage',
+            value: 10,
+            min_spend: 0,
+            valid_until: ''
+        },
 
-        // Mobile Navigation State
+        // Navigation
+        activeTab: 'dashboard',
         mobileMenuOpen: false,
 
-        // Active Dashboard View
-        activeTab: "dashboard",
-        loading: false,
-
-        // Auth Form State
-        authMode: "login", // 'login' or 'register'
-        authForm: {
-            name: "",
-            email: "",
-            password: "",
-            role: "customer"
-        },
-        authError: "",
-        authSuccess: "",
-
-        // Data Collections
-        metrics: {
+        // Data State
+        kpis: {
             mrr: 0,
-            active_subscriptions_count: 0,
+            active_subscriptions: 0,
             overdue_invoices_count: 0,
             overdue_invoices_amount: 0,
-            total_revenue: 0,
+            total_revenue_settled: 0,
+            draft_quotations_count: 0,
             total_customers_count: 0,
-            recent_revenue_logs: []
+            recent_transactions: []
         },
         subscriptions: [],
-        subStatusFilter: "",
         invoices: [],
-        invStatusFilter: "",
         plans: [],
-        products: [],
         discounts: [],
+        teamUsers: [],
+        customers: [],
 
-        // Modals & Action Forms
-        subModalOpen: false,
-        subForm: {
-            plan_id: "",
-            quantity: 1,
-            discount_code: "",
-            status: "Draft"
+        // Table Filters
+        subStatusFilter: 'all',
+        invStatusFilter: 'all',
+
+        // Modals
+        modals: {
+            adminStaff: false,
+            newSub: false,
+            newDiscount: false,
+            subDetail: false,
+            payInvoice: false,
+            billingCycle: false
         },
-        discountPreview: null,
-
-        payModalOpen: false,
+        selectedSubscription: null,
         selectedInvoice: null,
-        payForm: {
-            method: "credit_card",
-            amount: 0,
-            notes: ""
-        },
+        billingCycleResult: null,
+        isProcessing: false,
 
-        planModalOpen: false,
-        planForm: {
-            name: "",
-            frequency: "monthly",
-            min_quantity: 1,
-            price: 0,
-            status_rules: ""
-        },
-
-        productModalOpen: false,
-        productForm: {
-            name: "",
-            type: "service",
-            sales_price: 0,
-            cost_price: 0,
-            variant_attribute: "",
-            price_modifier: 0
-        },
-
-        discountModalOpen: false,
-        discountForm: {
-            code: "",
-            type: "percentage",
-            value: 10,
-            min_purchase: 0,
-            usage_limit: 100,
-            expiry_date: ""
-        },
-
-        // Notification Toasts (Strictly Zero Emojis)
+        // Toast Notifications
         toasts: [],
 
         // Initialization
         async init() {
-            // 1. Initialize Theme from localStorage or Default to Dark
-            const savedTheme = localStorage.getItem("intrinsic_theme") || "dark";
-            this.setTheme(savedTheme);
-
-            // 2. Mandatory Landing Flow: Verify existing session token
-            const token = API.getToken();
-            if (token) {
-                try {
-                    const user = await API.getMe();
-                    this.currentUser = user;
-                    this.isAuthenticated = true;
-                    await this.refreshAllData();
-                } catch (err) {
-                    API.setToken(null);
-                    this.currentUser = null;
-                    this.isAuthenticated = false;
-                }
-            } else {
-                this.currentUser = null;
-                this.isAuthenticated = false;
-            }
-
-            this.initialLoading = false;
-        },
-
-        // ----------------- Theme Switcher -----------------
-        setTheme(themeName) {
-            this.theme = themeName === "light" ? "light" : "dark";
-            localStorage.setItem("intrinsic_theme", this.theme);
-            if (this.theme === "dark") {
-                document.documentElement.classList.add("dark");
-            } else {
-                document.documentElement.classList.remove("dark");
+            this.applyTheme();
+            if (this.token) {
+                await this.fetchCurrentUser();
             }
         },
 
+        // Theme Toggle
         toggleTheme() {
-            const nextTheme = this.theme === "dark" ? "light" : "dark";
-            this.setTheme(nextTheme);
-            this.notify("info", "Theme Updated", `Switched to ${nextTheme.toUpperCase()} mode.`);
+            this.theme = this.theme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('intrinsic_theme', this.theme);
+            this.applyTheme();
         },
 
-        // ----------------- Authentication & Landing Flow -----------------
-        async handleAuthSubmit() {
-            this.authError = "";
-            this.authSuccess = "";
-
-            // User-friendly client validation
-            if (!this.authForm.email || !this.authForm.email.includes("@")) {
-                this.authError = "Please provide a valid corporate or personal email address.";
-                return;
+        applyTheme() {
+            if (this.theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
             }
+        },
 
-            if (!this.authForm.password || this.authForm.password.length < 6) {
-                this.authError = "Password must contain at least 6 characters for security compliance.";
-                return;
+        // Toast Notification System
+        notify(message, type = 'success', duration = 4000) {
+            const id = Date.now() + Math.random();
+            this.toasts.push({ id, message, type });
+            setTimeout(() => {
+                this.toasts = this.toasts.filter(t => t.id !== id);
+            }, duration);
+        },
+
+        // Password Validation Helper (Frontend Real-Time Validator)
+        validatePassword(pwd) {
+            if (!pwd) {
+                return {
+                    length: false,
+                    uppercase: false,
+                    lowercase: false,
+                    special: false,
+                    isValid: false
+                };
             }
+            const length = pwd.length > 8; // Must have MORE THAN 8 characters
+            const uppercase = /[A-Z]/.test(pwd);
+            const lowercase = /[a-z]/.test(pwd);
+            const special = /[^A-Za-z0-9]/.test(pwd);
+            return {
+                length,
+                uppercase,
+                lowercase,
+                special,
+                isValid: length && uppercase && lowercase && special
+            };
+        },
 
-            if (this.authMode === "register" && (!this.authForm.name || this.authForm.name.trim().length < 2)) {
-                this.authError = "Full name is required to initialize your user profile.";
-                return;
-            }
-
+        // API Helper
+        async api(endpoint, options = {}) {
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+                ...options.headers
+            };
             try {
-                this.loading = true;
-                if (this.authMode === "login") {
-                    const res = await API.login(this.authForm.email, this.authForm.password);
-                    API.setToken(res.access_token);
-                    this.currentUser = res.user;
-                    this.isAuthenticated = true;
-                    this.notify("success", "Authentication Successful", `Welcome back, ${res.user.name} [Role: ${res.user.role.toUpperCase()}].`);
-                } else {
-                    await API.register(
-                        this.authForm.name,
-                        this.authForm.email,
-                        this.authForm.password,
-                        this.authForm.role
-                    );
-                    const res = await API.login(this.authForm.email, this.authForm.password);
-                    API.setToken(res.access_token);
-                    this.currentUser = res.user;
-                    this.isAuthenticated = true;
-                    this.notify("success", "Account Created", `Profile registered successfully. Logged in as ${res.user.name}.`);
+                const response = await fetch(endpoint, { ...options, headers });
+                const data = await response.json().catch(() => null);
+                if (!response.ok) {
+                    let errMsg = 'Operation failed';
+                    if (data && data.detail) {
+                        errMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                    }
+                    throw new Error(errMsg);
                 }
-
-                // Reset auth fields
-                this.authForm = { name: "", email: "", password: "", role: "customer" };
-                this.activeTab = "dashboard";
-                await this.refreshAllData();
+                return data;
             } catch (err) {
-                this.authError = err.message || "Authentication could not be completed. Please check your credentials.";
-            } finally {
-                this.loading = false;
+                throw err;
             }
         },
 
-        async quickLogin(email, password) {
-            this.authError = "";
+        // Instant Persona Evaluation (Fast Judge Testing)
+        async quickLogin(persona) {
+            this.authLoading = true;
+            this.authError = '';
+            let email = 'admin@intrinsic.io';
+            if (persona === 'staff') email = 'staff@intrinsic.io';
+            if (persona === 'customer') email = 'customer@intrinsic.io';
+            
+            this.loginForm.email = email;
+            this.loginForm.password = 'Intrinsic@2026!';
+            
             try {
-                this.loading = true;
-                const res = await API.login(email, password);
-                API.setToken(res.access_token);
-                this.currentUser = res.user;
-                this.isAuthenticated = true;
-                this.activeTab = "dashboard";
-                this.notify("success", "Instant Session Started", `Logged in as ${res.user.name} [${res.user.role.toUpperCase()}].`);
-                await this.refreshAllData();
+                await this.handleLogin();
             } catch (err) {
-                this.authError = err.message || "Failed to initialize demo persona session.";
+                this.authError = err.message;
             } finally {
-                this.loading = false;
+                this.authLoading = false;
             }
         },
 
-        logout() {
-            API.setToken(null);
+        // Sign In Flow
+        async handleLogin() {
+            this.authLoading = true;
+            this.authError = '';
+            try {
+                const data = await this.api('/api/auth/login', {
+                    method: 'POST',
+                    body: JSON.stringify(this.loginForm)
+                });
+                this.token = data.access_token;
+                localStorage.setItem('intrinsic_token', this.token);
+                this.currentUser = data.user;
+                this.isAuthenticated = true;
+                this.loginForm.password = '';
+                this.notify(`Welcome to INTRINSIC, ${this.currentUser.full_name}!`);
+                
+                // Adjust default tab based on role
+                if (this.currentUser.role === 'customer') {
+                    this.activeTab = 'customer_portal';
+                } else {
+                    this.activeTab = 'dashboard';
+                }
+                await this.refreshAllData();
+            } catch (err) {
+                this.authError = err.message;
+            } finally {
+                this.authLoading = false;
+            }
+        },
+
+        // Public Customer-Only Registration Flow
+        async handleRegister() {
+            this.authLoading = true;
+            this.authError = '';
+            const val = this.validatePassword(this.registerForm.password);
+            if (!val.isValid) {
+                this.authError = 'Password does not satisfy all security criteria (> 8 chars, 1 uppercase, 1 lowercase, 1 special character).';
+                this.authLoading = false;
+                return;
+            }
+
+            try {
+                const data = await this.api('/api/auth/register', {
+                    method: 'POST',
+                    body: JSON.stringify(this.registerForm)
+                });
+                this.token = data.access_token;
+                localStorage.setItem('intrinsic_token', this.token);
+                this.currentUser = data.user;
+                this.isAuthenticated = true;
+                this.notify('Customer account registered successfully! Welcome to INTRINSIC.');
+                this.activeTab = 'customer_portal';
+                await this.refreshAllData();
+            } catch (err) {
+                this.authError = err.message;
+            } finally {
+                this.authLoading = false;
+            }
+        },
+
+        // Sign Out Flow
+        signOut() {
+            this.token = '';
+            localStorage.removeItem('intrinsic_token');
             this.currentUser = null;
             this.isAuthenticated = false;
-            this.activeTab = "dashboard";
-            this.mobileMenuOpen = false;
-            this.authForm = { name: "", email: "", password: "", role: "customer" };
-            this.authError = "";
-            this.notify("info", "Signed Out", "Your session has been securely terminated. Sign in again to resume.");
+            this.activeTab = 'dashboard';
+            this.subscriptions = [];
+            this.invoices = [];
+            this.teamUsers = [];
+            this.authMode = 'login';
+            this.loginForm = { email: '', password: '' };
+            this.notify('Signed out successfully. Session closed.', 'info');
         },
 
-        // ----------------- Data Refresh -----------------
-        async refreshAllData() {
-            if (!this.isAuthenticated || !this.currentUser) return;
-            this.loading = true;
+        // Current User Verification
+        async fetchCurrentUser() {
             try {
-                await Promise.allSettled([
-                    this.loadMetrics(),
+                const user = await this.api('/api/auth/me');
+                this.currentUser = user;
+                this.isAuthenticated = true;
+                if (this.currentUser.role === 'customer' && this.activeTab === 'dashboard') {
+                    this.activeTab = 'customer_portal';
+                }
+                await this.refreshAllData();
+            } catch (err) {
+                this.signOut();
+            }
+        },
+
+        // Master Refresh Function
+        async refreshAllData() {
+            if (!this.isAuthenticated) return;
+            try {
+                await Promise.all([
+                    this.loadKPIs(),
                     this.loadSubscriptions(),
                     this.loadInvoices(),
                     this.loadPlans(),
-                    this.loadProducts(),
                     this.loadDiscounts()
                 ]);
+
+                if (this.currentUser && this.currentUser.role === 'admin') {
+                    await this.loadTeamUsers();
+                }
+                if (this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.role === 'staff')) {
+                    await this.loadCustomers();
+                }
             } catch (err) {
-                console.error("Data synchronization error:", err);
-            } finally {
-                this.loading = false;
+                console.error('Error refreshing INTRINSIC data:', err);
             }
         },
 
-        async loadMetrics() {
-            if (this.currentUser.role === "customer") return;
+        // Load KPIs
+        async loadKPIs() {
             try {
-                this.metrics = await API.getDashboardMetrics();
+                this.kpis = await this.api('/api/kpis');
             } catch (err) {
-                console.warn("Metrics load skipped:", err.message);
+                console.error('Failed to load KPIs:', err);
             }
         },
 
+        // Load Subscriptions
         async loadSubscriptions() {
             try {
-                this.subscriptions = await API.getSubscriptions(this.subStatusFilter || null);
+                let url = '/api/subscriptions';
+                if (this.subStatusFilter && this.subStatusFilter !== 'all') {
+                    url += `?status_filter=${this.subStatusFilter}`;
+                }
+                this.subscriptions = await this.api(url);
             } catch (err) {
-                this.subscriptions = [];
+                console.error('Failed to load subscriptions:', err);
             }
         },
 
+        // Load Invoices
         async loadInvoices() {
             try {
-                this.invoices = await API.getInvoices(this.invStatusFilter || null);
+                let url = '/api/invoices';
+                if (this.invStatusFilter && this.invStatusFilter !== 'all') {
+                    url += `?status_filter=${this.invStatusFilter}`;
+                }
+                this.invoices = await this.api(url);
             } catch (err) {
-                this.invoices = [];
+                console.error('Failed to load invoices:', err);
             }
         },
 
+        // Load Plans
         async loadPlans() {
             try {
-                this.plans = await API.getPlans();
+                this.plans = await this.api('/api/plans');
             } catch (err) {
-                this.plans = [];
+                console.error('Failed to load plans:', err);
             }
         },
 
-        async loadProducts() {
-            try {
-                this.products = await API.getProducts();
-            } catch (err) {
-                this.products = [];
-            }
-        },
-
+        // Load Discounts
         async loadDiscounts() {
-            if (this.currentUser.role === "customer") return;
             try {
-                this.discounts = await API.getDiscounts();
+                this.discounts = await this.api('/api/discounts');
             } catch (err) {
-                this.discounts = [];
+                console.error('Failed to load discounts:', err);
             }
         },
 
-        // ----------------- Subscription Lifecycle -----------------
-        openNewSubModal() {
-            if (this.plans.length > 0) {
-                this.subForm.plan_id = this.plans[0].id;
+        // Load Team Users (Admin Only)
+        async loadTeamUsers() {
+            try {
+                this.teamUsers = await this.api('/api/admin/users');
+            } catch (err) {
+                console.error('Failed to load team users:', err);
             }
-            this.subForm.quantity = 1;
-            this.subForm.discount_code = "";
-            this.subForm.status = "Draft";
-            this.discountPreview = null;
-            this.subModalOpen = true;
         },
 
-        async checkDiscountCode() {
-            if (!this.subForm.discount_code.trim()) {
-                this.discountPreview = null;
+        // Load Customers for Dropdown
+        async loadCustomers() {
+            try {
+                this.customers = await this.api('/api/customers');
+            } catch (err) {
+                console.error('Failed to load customers:', err);
+            }
+        },
+
+        // Create Internal Staff / Admin Account (Admin Management Portal)
+        async handleCreateTeamUser() {
+            const val = this.validatePassword(this.adminUserForm.password);
+            if (!val.isValid) {
+                this.notify('Password must be >8 characters with uppercase, lowercase, and special symbol.', 'error');
                 return;
             }
-            const selectedPlan = this.plans.find(p => p.id == this.subForm.plan_id);
-            const subtotal = selectedPlan ? (selectedPlan.price * this.subForm.quantity) : 0;
+            this.isProcessing = true;
             try {
-                const res = await API.validateDiscount(this.subForm.discount_code, subtotal);
-                this.discountPreview = res;
-            } catch (err) {
-                this.discountPreview = { valid: false, reason: err.message };
-            }
-        },
-
-        async handleCreateSubscription() {
-            if (!this.subForm.plan_id) {
-                this.notify("error", "Plan Selection Required", "Please select a subscription plan from the list.");
-                return;
-            }
-
-            try {
-                this.loading = true;
-                const payload = {
-                    plan_id: parseInt(this.subForm.plan_id),
-                    quantity: parseInt(this.subForm.quantity || 1),
-                    discount_code: this.subForm.discount_code.trim() || null,
-                    status: this.subForm.status
-                };
-                const created = await API.createSubscription(payload);
-                this.subModalOpen = false;
-                this.notify("success", "Contract Initialized", `Subscription ${created.sub_number} recorded in status [${created.status}].`);
-                await this.refreshAllData();
-            } catch (err) {
-                this.notify("error", "Validation Issue", err.message);
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async transitionStatus(sub, targetStatus) {
-            try {
-                this.loading = true;
-                const updated = await API.updateSubscriptionStatus(sub.id, targetStatus);
-                this.notify("success", "Lifecycle Updated", `Subscription ${updated.sub_number} transitioned to [${targetStatus}].`);
-                await this.refreshAllData();
-            } catch (err) {
-                this.notify("error", "Transition Denied", err.message);
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        // ----------------- Invoices & Settlements -----------------
-        openPayModal(invoice) {
-            this.selectedInvoice = invoice;
-            this.payForm.amount = invoice.total_amount;
-            this.payForm.method = "credit_card";
-            this.payForm.notes = `Settlement for statement ${invoice.invoice_number}`;
-            this.payModalOpen = true;
-        },
-
-        async handlePayInvoice() {
-            if (!this.selectedInvoice) return;
-            if (this.payForm.amount <= 0) {
-                this.notify("error", "Invalid Amount", "Settlement amount must be greater than zero.");
-                return;
-            }
-
-            try {
-                this.loading = true;
-                const payment = await API.payInvoice(this.selectedInvoice.id, {
-                    method: this.payForm.method,
-                    amount: parseFloat(this.payForm.amount),
-                    notes: this.payForm.notes
+                const created = await this.api('/api/admin/users', {
+                    method: 'POST',
+                    body: JSON.stringify(this.adminUserForm)
                 });
-                this.payModalOpen = false;
-                this.notify("success", "Payment Cleared", `Transaction ${payment.payment_number} settled for $${payment.amount.toFixed(2)}.`);
+                this.notify(`Account for ${created.full_name} (${created.role.toUpperCase()}) created successfully!`);
+                this.modals.adminStaff = false;
+                this.adminUserForm = {
+                    full_name: '',
+                    email: '',
+                    password: '',
+                    role: 'staff',
+                    department: 'Billing Operations'
+                };
+                await this.loadTeamUsers();
+            } catch (err) {
+                this.notify(err.message, 'error');
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+        // Toggle User Status (Admin Only)
+        async toggleUserStatus(userId) {
+            try {
+                const updated = await this.api(`/api/admin/users/${userId}/toggle-status`, {
+                    method: 'PATCH'
+                });
+                this.notify(`User status updated: ${updated.full_name} is now ${updated.is_active ? 'Active' : 'Deactivated'}.`);
+                await this.loadTeamUsers();
+            } catch (err) {
+                this.notify(err.message, 'error');
+            }
+        },
+
+        // Subscription State Machine Transition
+        async transitionSubscription(subId, toStatus, reason = '') {
+            this.isProcessing = true;
+            try {
+                const updated = await this.api(`/api/subscriptions/${subId}/transition`, {
+                    method: 'POST',
+                    body: JSON.stringify({ to_status: toStatus, reason })
+                });
+                this.notify(`Subscription ${updated.subscription_code} transitioned to ${toStatus.toUpperCase()}!`);
+                await this.refreshAllData();
+                if (this.selectedSubscription && this.selectedSubscription.id === subId) {
+                    this.selectedSubscription = updated;
+                }
+            } catch (err) {
+                this.notify(err.message, 'error');
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+        // Open Subscription Details Modal
+        openSubDetail(sub) {
+            this.selectedSubscription = sub;
+            this.modals.subDetail = true;
+        },
+
+        // Create New Subscription
+        async handleCreateSubscription() {
+            this.isProcessing = true;
+            try {
+                const payload = {
+                    customer_id: parseInt(this.newSubForm.customer_id) || (this.currentUser.role === 'customer' ? this.currentUser.id : 0),
+                    plan_id: parseInt(this.newSubForm.plan_id),
+                    billing_interval: this.newSubForm.billing_interval,
+                    quantity: parseInt(this.newSubForm.quantity) || 1,
+                    discount_code: this.newSubForm.discount_code.trim() || null,
+                    notes: this.newSubForm.notes
+                };
+                const created = await this.api('/api/subscriptions', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                this.notify(`Subscription ${created.subscription_code} initiated (${created.status.toUpperCase()})!`);
+                this.modals.newSub = false;
+                this.newSubForm = {
+                    customer_id: '',
+                    plan_id: '',
+                    billing_interval: 'monthly',
+                    quantity: 1,
+                    discount_code: '',
+                    notes: ''
+                };
                 await this.refreshAllData();
             } catch (err) {
-                this.notify("error", "Payment Failed", err.message);
+                this.notify(err.message, 'error');
             } finally {
-                this.loading = false;
+                this.isProcessing = false;
             }
         },
 
-        async triggerBillingEngine(subId = null) {
-            try {
-                this.loading = true;
-                const generated = await API.generateInvoices(subId);
-                const count = generated.length;
-                this.notify("success", "Billing Run Complete", `Generated ${count} recurring statement(s) across active subscription cycles.`);
-                await this.refreshAllData();
-            } catch (err) {
-                this.notify("error", "Billing Engine Notice", err.message);
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        // ----------------- Catalog & Rule Creators (Admin) -----------------
-        async handleCreatePlan() {
-            if (!this.planForm.name.trim()) {
-                this.notify("error", "Field Required", "Plan name is required.");
-                return;
-            }
-            if (this.planForm.price < 0) {
-                this.notify("error", "Invalid Price", "Price cannot be negative.");
-                return;
-            }
-
-            try {
-                this.loading = true;
-                const payload = {
-                    name: this.planForm.name.trim(),
-                    frequency: this.planForm.frequency,
-                    min_quantity: parseInt(this.planForm.min_quantity || 1),
-                    price: parseFloat(this.planForm.price),
-                    status_rules: this.planForm.status_rules.trim() || null
-                };
-                await API.createPlan(payload);
-                this.planModalOpen = false;
-                this.planForm = { name: "", frequency: "monthly", min_quantity: 1, price: 0, status_rules: "" };
-                this.notify("success", "Plan Published", "New subscription plan tier is now live.");
-                await this.loadPlans();
-            } catch (err) {
-                this.notify("error", "Plan Setup Notice", err.message);
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async handleCreateProduct() {
-            if (!this.productForm.name.trim()) {
-                this.notify("error", "Field Required", "Product name cannot be empty.");
-                return;
-            }
-
-            try {
-                this.loading = true;
-                const payload = {
-                    name: this.productForm.name.trim(),
-                    type: this.productForm.type.trim(),
-                    sales_price: parseFloat(this.productForm.sales_price),
-                    cost_price: parseFloat(this.productForm.cost_price || 0),
-                    variant_attribute: this.productForm.variant_attribute.trim() || null,
-                    price_modifier: parseFloat(this.productForm.price_modifier || 0)
-                };
-                await API.createProduct(payload);
-                this.productModalOpen = false;
-                this.productForm = { name: "", type: "service", sales_price: 0, cost_price: 0, variant_attribute: "", price_modifier: 0 };
-                this.notify("success", "Product Catalog Updated", "Product and variant specification recorded.");
-                await this.loadProducts();
-            } catch (err) {
-                this.notify("error", "Product Setup Notice", err.message);
-            } finally {
-                this.loading = false;
-            }
-        },
-
+        // Create New Discount Rule
         async handleCreateDiscount() {
-            if (!this.discountForm.code.trim()) {
-                this.notify("error", "Field Required", "Discount code cannot be blank.");
-                return;
-            }
-
+            this.isProcessing = true;
             try {
-                this.loading = true;
                 const payload = {
-                    code: this.discountForm.code.trim().toUpperCase(),
-                    type: this.discountForm.type,
-                    value: parseFloat(this.discountForm.value),
-                    min_purchase: parseFloat(this.discountForm.min_purchase || 0),
-                    usage_limit: parseInt(this.discountForm.usage_limit || 100),
-                    expiry_date: this.discountForm.expiry_date ? new Date(this.discountForm.expiry_date).toISOString() : null
+                    code: this.newDiscountForm.code.toUpperCase().trim(),
+                    description: this.newDiscountForm.description,
+                    discount_type: this.newDiscountForm.discount_type,
+                    value: parseFloat(this.newDiscountForm.value),
+                    min_spend: parseFloat(this.newDiscountForm.min_spend) || 0.0,
+                    valid_until: this.newDiscountForm.valid_until ? new Date(this.newDiscountForm.valid_until).toISOString() : null
                 };
-                await API.createDiscount(payload);
-                this.discountModalOpen = false;
-                this.discountForm = { code: "", type: "percentage", value: 10, min_purchase: 0, usage_limit: 100, expiry_date: "" };
-                this.notify("success", "Promotional Rule Active", "Discount rule configured and active.");
+                const created = await this.api('/api/discounts', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                this.notify(`Discount Rule ${created.code} activated successfully!`);
+                this.modals.newDiscount = false;
+                this.newDiscountForm = {
+                    code: '',
+                    description: '',
+                    discount_type: 'percentage',
+                    value: 10,
+                    min_spend: 0,
+                    valid_until: ''
+                };
                 await this.loadDiscounts();
             } catch (err) {
-                this.notify("error", "Discount Setup Notice", err.message);
+                this.notify(err.message, 'error');
             } finally {
-                this.loading = false;
+                this.isProcessing = false;
             }
         },
 
-        // ----------------- Helpers & Toasts -----------------
-        notify(type, title, message) {
-            const id = Date.now() + Math.random();
-            this.toasts.push({ id, type, title, message });
-            setTimeout(() => {
-                this.toasts = this.toasts.filter(t => t.id !== id);
-            }, 5000);
-        },
-
-        removeToast(id) {
-            this.toasts = this.toasts.filter(t => t.id !== id);
-        },
-
-        formatCurrency(val) {
-            return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val || 0);
-        },
-
-        formatDate(isoStr) {
-            if (!isoStr) return "N/A";
-            const d = new Date(isoStr);
-            return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-        },
-
-        getStatusBadgeClass(status) {
-            switch (status) {
-                case "Active":
-                case "Paid":
-                    return "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800";
-                case "Confirmed":
-                    return "bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-400 border border-blue-300 dark:border-blue-800";
-                case "Quotation":
-                    return "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-800";
-                case "Draft":
-                    return "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700";
-                case "Closed":
-                    return "bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-400 border border-rose-300 dark:border-rose-800";
-                default:
-                    return "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-slate-700";
+        // Automated Invoice Generation Engine ("Run Billing Cycle")
+        async runBillingCycle() {
+            this.isProcessing = true;
+            try {
+                const result = await this.api('/api/billing/run-cycle', {
+                    method: 'POST'
+                });
+                this.billingCycleResult = result;
+                this.modals.billingCycle = true;
+                this.notify(`Billing cycle completed: ${result.invoices_generated} invoices generated ($${result.total_amount_billed.toLocaleString()})!`);
+                await this.refreshAllData();
+            } catch (err) {
+                this.notify(err.message, 'error');
+            } finally {
+                this.isProcessing = false;
             }
+        },
+
+        // Open Invoice Payment Modal
+        openPayModal(invoice) {
+            this.selectedInvoice = invoice;
+            this.modals.payInvoice = true;
+        },
+
+        // Settle / Pay Invoice
+        async handlePayInvoice(paymentMethod = 'credit_card') {
+            if (!this.selectedInvoice) return;
+            this.isProcessing = true;
+            try {
+                const updated = await this.api(`/api/invoices/${this.selectedInvoice.id}/pay`, {
+                    method: 'POST',
+                    body: JSON.stringify({ payment_method: paymentMethod })
+                });
+                this.notify(`Invoice ${updated.invoice_number} paid successfully ($${updated.total_amount.toLocaleString()})!`);
+                this.modals.payInvoice = false;
+                await this.refreshAllData();
+            } catch (err) {
+                this.notify(err.message, 'error');
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+        // Void Invoice
+        async handleVoidInvoice(invId) {
+            if (!confirm('Are you sure you want to void this invoice?')) return;
+            try {
+                const updated = await this.api(`/api/invoices/${invId}/void`, {
+                    method: 'POST'
+                });
+                this.notify(`Invoice ${updated.invoice_number} marked as VOID.`);
+                await this.refreshAllData();
+            } catch (err) {
+                this.notify(err.message, 'error');
+            }
+        },
+
+        // Status Badge Helper Classes
+        getStatusClass(status) {
+            const map = {
+                active: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700',
+                confirmed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-300 dark:border-blue-700',
+                quotation: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700',
+                draft: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-600',
+                closed: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border border-rose-300 dark:border-rose-700',
+                paid: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700',
+                posted: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300 border border-sky-300 dark:border-sky-700',
+                overdue: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-300 dark:border-red-700 font-bold animate-pulse',
+                void: 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 line-through'
+            };
+            return map[status.toLowerCase()] || 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200';
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '—';
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch (e) {
+                return dateStr;
+            }
+        },
+
+        formatCurrency(num) {
+            if (num === null || num === undefined) return '$0.00';
+            return '$' + Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
     }));
 });
